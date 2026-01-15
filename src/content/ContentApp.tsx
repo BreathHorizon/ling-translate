@@ -1,0 +1,182 @@
+import React, { useState, useEffect } from 'react';
+import { Languages, Settings, Loader2, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { TranslationRequest, TranslationResponse } from '@/lib/types';
+import { useStore } from '@/store/useStore';
+
+const ContentApp: React.FC = () => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const { settings, loadSettings, updateSettings } = useStore();
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const handleTranslate = async () => {
+    if (isTranslating) return;
+    
+    // Refresh settings to ensure latest
+    await loadSettings();
+    const currentSettings = useStore.getState().settings;
+
+    if (!currentSettings.defaultModelId) {
+      if (confirm('No translation model selected. Would you like to configure one now?')) {
+        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
+      }
+      return;
+    }
+
+    setIsTranslating(true);
+    
+    try {
+      const paragraphs = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li'));
+      
+      const visibleParagraphs = paragraphs.filter(p => {
+        const rect = p.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight && p.textContent?.trim();
+      });
+
+      for (const p of visibleParagraphs.slice(0, 5)) {
+         const originalText = p.textContent || '';
+         if (!originalText.trim()) continue;
+
+         const request: TranslationRequest = {
+            type: 'TRANSLATE_TEXT',
+            payload: {
+              text: originalText,
+              from: currentSettings.defaultFromLang,
+              to: currentSettings.defaultToLang,
+              contentType: 'text',
+              modelId: currentSettings.defaultModelId
+            }
+         };
+
+         const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
+         
+         if (response.success && response.data) {
+           p.textContent = response.data.translatedText;
+           p.setAttribute('data-translated', 'true');
+           p.setAttribute('title', response.data.originalText);
+         } else {
+           console.error('Translation failed for:', originalText, response.error);
+         }
+      }
+
+    } catch (error) {
+      console.error('Translation process error:', error);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const supportedLanguages = [
+    { code: 'zh-CN', name: 'Chinese (Simplified)' },
+    { code: 'en', name: 'English' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'es', name: 'Spanish' },
+  ];
+
+  // Flatten models for selection
+  const availableModels = settings.apiConfigs.flatMap(api => 
+    api.models.map(model => ({
+      id: `${api.id}:${model.id}`,
+      name: `${model.name} (${api.name})`
+    }))
+  );
+
+  return (
+    <div 
+      className="fixed top-1/2 right-0 -translate-y-1/2 flex flex-col items-end gap-2 font-sans text-gray-900 z-[9999]"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Quick Settings Menu */}
+      {showMenu && (
+        <div className="absolute top-0 right-10 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-right-2 z-50 text-left">
+           <div className="flex justify-between items-center mb-4">
+             <h3 className="font-bold text-gray-800 dark:text-white">Quick Settings</h3>
+             <button onClick={() => setShowMenu(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+               <X className="w-4 h-4" />
+             </button>
+           </div>
+           
+           <div className="space-y-4">
+              <div>
+                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Target Language</label>
+                 <select 
+                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                   value={settings.defaultToLang}
+                   onChange={(e) => updateSettings({ defaultToLang: e.target.value })}
+                 >
+                   {supportedLanguages.map(lang => (
+                     <option key={lang.code} value={lang.code}>{lang.name}</option>
+                   ))}
+                 </select>
+              </div>
+
+              <div>
+                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
+                 <select 
+                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                   value={settings.defaultModelId}
+                   onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
+                 >
+                   <option value="">Select a model...</option>
+                   {availableModels.map(model => (
+                     <option key={model.id} value={model.id}>{model.name}</option>
+                   ))}
+                 </select>
+              </div>
+
+              <button 
+                className="w-full py-2 text-sm text-primary hover:bg-primary/5 dark:hover:bg-primary/20 rounded-md transition-colors font-medium" 
+                onClick={() => chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' })}
+              >
+                 More Settings
+              </button>
+           </div>
+        </div>
+      )}
+
+      {/* Settings Button */}
+      <div className={cn(
+        "transition-all duration-300 ease-in-out transform origin-right mb-1 mr-1",
+        isHovered || showMenu ? "opacity-100 translate-x-0 scale-100" : "opacity-0 translate-x-10 scale-0 pointer-events-none"
+      )}>
+         <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="w-8 h-8 rounded-full bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 shadow-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors border border-gray-100 dark:border-gray-600"
+            title="Settings"
+         >
+           <Settings className="w-4 h-4" />
+         </button>
+      </div>
+
+      {/* Main FAB */}
+      <button
+        onClick={handleTranslate}
+        disabled={isTranslating}
+        className={cn(
+          "w-8 h-8 rounded-l-lg shadow-xl flex items-center justify-center transition-all duration-300 z-50",
+          "bg-primary text-white hover:bg-primary-dark hover:w-10 active:scale-95",
+          "dark:bg-primary-dark dark:text-gray-100",
+          !isHovered && !showMenu && "opacity-50 hover:opacity-100 translate-x-2 hover:translate-x-0", // Semi-hide when idle
+          isTranslating && "cursor-wait opacity-80"
+        )}
+      >
+        {isTranslating ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Languages className="w-4 h-4" />
+        )}
+      </button>
+    </div>
+  );
+};
+
+export default ContentApp;
