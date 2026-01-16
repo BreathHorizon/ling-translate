@@ -4,6 +4,7 @@ import { Github, Globe } from 'lucide-react';
 
 export const About: React.FC = () => {
   const version = chrome.runtime.getManifest().version;
+  const build = 7;
 
   return (
     <div className="space-y-6">
@@ -11,7 +12,7 @@ export const About: React.FC = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle>Ling Translate v{version}</CardTitle>
+          <CardTitle>Ling Translate v{version} (Build {build})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-gray-600">
