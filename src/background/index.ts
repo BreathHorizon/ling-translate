@@ -4,6 +4,86 @@ import { sha256 } from '@/lib/utils';
 
 console.log('Background script loaded');
 
+const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSecond: number) => {
+  let concurrency = Math.max(1, initialConcurrency);
+  let requestsPerSecond = Math.max(1, initialRequestsPerSecond);
+  let intervalMs = 1000 / requestsPerSecond;
+  let nextAvailableTime = 0;
+  let activeCount = 0;
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+
+  const queue: Array<{
+    fn: () => Promise<unknown>;
+    resolve: (value: unknown) => void;
+    reject: (reason?: unknown) => void;
+  }> = [];
+
+  const schedule = () => {
+    if (activeCount >= concurrency || queue.length === 0) return;
+
+    const now = Date.now();
+    const scheduledTime = Math.max(now, nextAvailableTime);
+    const delay = scheduledTime - now;
+
+    if (delay > 0) {
+      if (timerId !== null) return;
+      timerId = setTimeout(() => {
+        timerId = null;
+        schedule();
+      }, delay);
+      return;
+    }
+
+    const task = queue.shift();
+    if (!task) return;
+
+    nextAvailableTime = scheduledTime + intervalMs;
+    activeCount += 1;
+
+    task.fn()
+      .then(task.resolve)
+      .catch(task.reject)
+      .finally(() => {
+        activeCount = Math.max(0, activeCount - 1);
+        schedule();
+      });
+
+    schedule();
+  };
+
+  const enqueue = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      queue.push({ fn, resolve, reject });
+      schedule();
+    });
+  };
+
+  const updateLimits = (newConcurrency: number, newRequestsPerSecond: number) => {
+    concurrency = Math.max(1, newConcurrency);
+    requestsPerSecond = Math.max(1, newRequestsPerSecond);
+    intervalMs = 1000 / requestsPerSecond;
+    schedule();
+  };
+
+  return { enqueue, updateLimits };
+};
+
+const modelLimiters = new Map<string, ReturnType<typeof createRequestLimiter>>();
+
+const getModelLimiter = (modelKey: string, concurrencyLimit: number, requestsPerSecondLimit: number) => {
+  const normalizedConcurrency = Math.max(1, concurrencyLimit);
+  const normalizedRequestsPerSecond = Math.max(1, requestsPerSecondLimit);
+  const existing = modelLimiters.get(modelKey);
+  if (existing) {
+    existing.updateLimits(normalizedConcurrency, normalizedRequestsPerSecond);
+    return existing;
+  }
+
+  const limiter = createRequestLimiter(normalizedConcurrency, normalizedRequestsPerSecond);
+  modelLimiters.set(modelKey, limiter);
+  return limiter;
+};
+
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
@@ -141,7 +221,12 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
   if (!modelConfig) return { success: false, error: 'Model Configuration not found' };
 
   try {
-    const translatedText = await callOpenAI(payload.text, payload.to, apiConfig, modelConfig);
+    const limiter = getModelLimiter(
+      payload.modelId,
+      modelConfig.concurrency ?? 4,
+      modelConfig.requestsPerSecond ?? modelConfig.concurrency ?? 12
+    );
+    const translatedText = await limiter.enqueue(() => callOpenAI(payload.text, payload.to, apiConfig, modelConfig));
     
     // Save to Cache
     await setCache(cacheKey, translatedText, payload.text);

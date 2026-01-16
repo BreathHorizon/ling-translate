@@ -4,6 +4,118 @@ import { cn } from '@/lib/utils';
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 
+const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li';
+const MIN_LOADING_MS = 200;
+
+const getTranslatableTextNodes = (element: Element) => {
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        if (!node.textContent?.trim()) return NodeFilter.FILTER_SKIP;
+        const parentTag = (node.parentElement?.tagName || '').toLowerCase();
+        if (['script', 'style', 'noscript'].includes(parentTag)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  const nodes: Array<{ node: Text; text: string }> = [];
+  while (walker.nextNode()) {
+    const current = walker.currentNode as Text;
+    nodes.push({ node: current, text: current.textContent || '' });
+  }
+  return nodes;
+};
+
+const attachLoadingBadge = (element: HTMLElement) => {
+  if (element.querySelector('[data-translate-loading="true"]')) return null;
+
+  const badge = document.createElement('span');
+  badge.setAttribute('data-translate-loading', 'true');
+  badge.setAttribute('aria-hidden', 'true');
+  badge.style.display = 'inline-block';
+  badge.style.width = '0.8em';
+  badge.style.height = '0.8em';
+  badge.style.marginLeft = '0.35em';
+  badge.style.border = '2px solid currentColor';
+  badge.style.borderTopColor = 'transparent';
+  badge.style.borderRadius = '999px';
+  badge.style.verticalAlign = 'middle';
+  badge.style.boxSizing = 'border-box';
+  badge.style.opacity = '0.75';
+  badge.style.animation = 'ling-translate-spin 0.8s linear infinite';
+
+  const styleId = 'ling-translate-loading-style';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '@keyframes ling-translate-spin { to { transform: rotate(360deg); } }';
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  element.appendChild(badge);
+  return badge;
+};
+
+// Promise-based limiter to respect both concurrency and rate limits
+const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSecond: number) => {
+  const concurrency = Math.max(1, initialConcurrency);
+  const requestsPerSecond = Math.max(1, initialRequestsPerSecond);
+  const intervalMs = 1000 / requestsPerSecond;
+  let nextAvailableTime = 0;
+  let activeCount = 0;
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+
+  const queue: Array<{
+    fn: () => Promise<unknown>;
+    resolve: (value: unknown) => void;
+    reject: (reason?: unknown) => void;
+  }> = [];
+
+  const schedule = () => {
+    if (activeCount >= concurrency || queue.length === 0) return;
+
+    const now = Date.now();
+    const scheduledTime = Math.max(now, nextAvailableTime);
+    const delay = scheduledTime - now;
+
+    if (delay > 0) {
+      if (timerId !== null) return;
+      timerId = setTimeout(() => {
+        timerId = null;
+        schedule();
+      }, delay);
+      return;
+    }
+
+    const task = queue.shift();
+    if (!task) return;
+
+    nextAvailableTime = scheduledTime + intervalMs;
+    activeCount += 1;
+
+    task.fn()
+      .then(task.resolve)
+      .catch(task.reject)
+      .finally(() => {
+        activeCount = Math.max(0, activeCount - 1);
+        schedule();
+      });
+
+    schedule();
+  };
+
+  const enqueue = async <T,>(fn: () => Promise<T>): Promise<T> =>
+    new Promise((resolve, reject) => {
+      queue.push({ fn, resolve, reject });
+      schedule();
+    });
+
+  return enqueue;
+};
+
 const ContentApp: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -31,38 +143,101 @@ const ContentApp: React.FC = () => {
     setIsTranslating(true);
     
     try {
-      const paragraphs = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li'));
+      const targetLanguage = currentSettings.defaultToLang;
+      const sourceLanguage = currentSettings.defaultFromLang;
+      const [apiId, modelId] = currentSettings.defaultModelId.split(':');
+      const modelConfig = currentSettings.apiConfigs
+        .find(api => api.id === apiId)
+        ?.models.find(model => model.id === modelId);
+
+      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 5);
+      const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
+      const requestsPerSecond = Math.max(
+        1,
+        modelConfig?.requestsPerSecond ?? modelConfig?.concurrency ?? 12
+      );
+      const limit = createRequestLimiter(concurrency, requestsPerSecond);
+      const showLoadingIcon = currentSettings.showLoadingIcon ?? true;
+      
+      const paragraphs = Array.from(document.querySelectorAll(TARGET_SELECTOR))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement);
       
       const visibleParagraphs = paragraphs.filter(p => {
         const rect = p.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight && p.textContent?.trim();
+        const hasText = p.textContent?.trim();
+        const translatedLang = p.getAttribute('data-translated-lang');
+        return rect.top >= 0 && rect.bottom <= window.innerHeight && Boolean(hasText) && translatedLang !== targetLanguage;
       });
 
-      for (const p of visibleParagraphs.slice(0, 5)) {
-         const originalText = p.textContent || '';
-         if (!originalText.trim()) continue;
+      const elementsToTranslate = visibleParagraphs.slice(0, maxParagraphs);
 
-         const request: TranslationRequest = {
-            type: 'TRANSLATE_TEXT',
-            payload: {
-              text: originalText,
-              from: currentSettings.defaultFromLang,
-              to: currentSettings.defaultToLang,
-              contentType: 'text',
-              modelId: currentSettings.defaultModelId
+      const translationTasks = elementsToTranslate.map(async (element) => {
+        const textNodes = getTranslatableTextNodes(element);
+        if (textNodes.length === 0) return;
+
+        const originalText = textNodes
+          .map(({ text }) => text.trim())
+          .filter(Boolean)
+          .join('\n');
+
+        let hasTranslated = false;
+        const loadingBadge = showLoadingIcon ? attachLoadingBadge(element) : null;
+        const loadingStart = loadingBadge ? Date.now() : 0;
+
+        const nodeTasks = textNodes.map(({ node, text }) => {
+          const trimmed = text.trim();
+          if (!trimmed) return null;
+
+          const leadingWhitespace = text.match(/^\s*/)?.[0] ?? '';
+          const trailingWhitespace = text.match(/\s*$/)?.[0] ?? '';
+
+          return limit(async () => {
+            try {
+              const request: TranslationRequest = {
+                type: 'TRANSLATE_TEXT',
+                payload: {
+                  text: trimmed,
+                  from: sourceLanguage,
+                  to: targetLanguage,
+                  contentType: 'text',
+                  modelId: currentSettings.defaultModelId
+                }
+              };
+  
+              const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
+              
+              if (response.success && response.data) {
+                node.textContent = `${leadingWhitespace}${response.data.translatedText}${trailingWhitespace}`;
+                hasTranslated = true;
+              } else {
+                console.error('Translation failed for:', trimmed, response.error);
+              }
+            } catch (err) {
+              console.error('Translation request error for:', trimmed, err);
             }
-         };
+          });
+        }).filter(Boolean) as Promise<void>[];
 
-         const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
-         
-         if (response.success && response.data) {
-           p.textContent = response.data.translatedText;
-           p.setAttribute('data-translated', 'true');
-           p.setAttribute('title', response.data.originalText);
-         } else {
-           console.error('Translation failed for:', originalText, response.error);
-         }
-      }
+        await Promise.all(nodeTasks);
+
+        if (loadingBadge) {
+          const elapsed = Date.now() - loadingStart;
+          if (elapsed < MIN_LOADING_MS) {
+            await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS - elapsed));
+          }
+          loadingBadge.remove();
+        }
+
+        if (originalText && hasTranslated) {
+          element.setAttribute('title', originalText);
+        }
+        if (hasTranslated) {
+          element.setAttribute('data-translated', 'true');
+          element.setAttribute('data-translated-lang', targetLanguage);
+        }
+      });
+
+      await Promise.all(translationTasks);
 
     } catch (error) {
       console.error('Translation process error:', error);

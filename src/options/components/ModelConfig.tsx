@@ -24,7 +24,11 @@ export const ModelConfig: React.FC = () => {
   const handleEditModel = (apiId: string, model: IModelConfig) => {
     setEditingApiId(apiId);
     setEditingModelId(model.id);
-    setFormData(model);
+    setFormData({
+      ...model,
+      concurrency: model.concurrency ?? 4,
+      requestsPerSecond: model.requestsPerSecond ?? model.concurrency ?? 12
+    });
   };
 
   const handleAddModel = (apiId: string) => {
@@ -34,6 +38,8 @@ export const ModelConfig: React.FC = () => {
       name: 'deepseek-v3.2',
       maxTokens: 2000,
       maxParagraphs: 5,
+      concurrency: 4,
+      requestsPerSecond: 12,
       systemPrompt: '你是一位专业的 {{to}} 母语翻译者，需要流畅地将文本翻译成 {{to}}。\n\n## 翻译规则\n1. 仅输出翻译内容，不要包含解释或其他额外内容\n2. 返回的翻译必须保持与原文完全相同的段落数和格式\n3. 如果文本包含 HTML 标签，在保持流畅性的同时，请考虑标签在翻译中的位置\n4. 对于不应翻译的内容（如专有名词、代码等），请保留原文\n5. 直接输出翻译（无分隔符，无额外文本）',
       prompt: '翻译成 {{to}}（仅输出翻译）：\n\n{{text}}',
       systemMultiplePrompt: '你是一位专业的 {{to}} 母语翻译者，需要流畅地将文本翻译成 {{to}}。\n\n## 翻译规则\n1. 仅输出翻译内容，不要包含解释或其他额外内容\n2. 返回的翻译必须保持与原文完全相同的段落数和格式\n3. 如果文本包含 HTML 标签，在保持流畅性的同时，请考虑标签在翻译中的位置\n4. 对于不应翻译的内容（如专有名词、代码等），请保留原文\n\n## 输入输出格式示例\n\n### 输入示例：\nParagraph A\n\n%%\n\nParagraph B\n\n### 输出示例：\nTranslation A\n\n%%\n\nTranslation B',
@@ -76,11 +82,17 @@ export const ModelConfig: React.FC = () => {
     const api = settings.apiConfigs.find(a => a.id === editingApiId);
     if (!api) return;
 
+    const normalizedFormData: IModelConfig = {
+      ...(formData as IModelConfig),
+      concurrency: Math.max(1, Number(formData.concurrency) || 1),
+      requestsPerSecond: Math.max(1, Number(formData.requestsPerSecond) || Number(formData.concurrency) || 1)
+    };
+
     let updatedModels = [...api.models];
     if (editingModelId) {
-      updatedModels = updatedModels.map(m => m.id === editingModelId ? { ...m, ...formData } as IModelConfig : m);
+      updatedModels = updatedModels.map(m => m.id === editingModelId ? { ...m, ...normalizedFormData } : m);
     } else {
-      updatedModels.push({ ...formData, id: generateId() } as IModelConfig);
+      updatedModels.push({ ...normalizedFormData, id: generateId() });
     }
 
     await updateApiConfig({ ...api, models: updatedModels });
@@ -114,7 +126,7 @@ export const ModelConfig: React.FC = () => {
               value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Max Tokens"
                 type="number"
@@ -126,6 +138,20 @@ export const ModelConfig: React.FC = () => {
                 type="number"
                 value={formData.maxParagraphs || 0}
                 onChange={(e) => setFormData({ ...formData, maxParagraphs: parseInt(e.target.value) })}
+              />
+              <Input
+                label="Concurrency (Threads)"
+                type="number"
+                min={1}
+                value={formData.concurrency || 1}
+                onChange={(e) => setFormData({ ...formData, concurrency: parseInt(e.target.value) || 1 })}
+              />
+              <Input
+                label="Requests Per Second"
+                type="number"
+                min={1}
+                value={formData.requestsPerSecond || 1}
+                onChange={(e) => setFormData({ ...formData, requestsPerSecond: parseInt(e.target.value) || 1 })}
               />
             </div>
             
@@ -227,7 +253,7 @@ export const ModelConfig: React.FC = () => {
                     <div>
                       <h4 className="font-bold">{model.name}</h4>
                       <p className="text-xs text-gray-500">
-                        Max Tokens: {model.maxTokens} | Max Paragraphs: {model.maxParagraphs}
+                        Max Tokens: {model.maxTokens} | Max Paragraphs: {model.maxParagraphs} | Concurrency: {model.concurrency ?? 4} | Req/sec: {model.requestsPerSecond ?? model.concurrency ?? 12}
                       </p>
                     </div>
                     <div className="flex gap-2">

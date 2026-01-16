@@ -78,6 +78,19 @@ const Options: React.FC = () => {
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold mb-4">Translation</h2>
+                <label className="flex items-center gap-3 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={settings.showLoadingIcon ?? true}
+                    onChange={(e) => updateSettings({ showLoadingIcon: e.target.checked })}
+                  />
+                  Show a loading icon beside text while translating
+                </label>
+              </div>
+
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
                 <h2 className="text-xl font-bold mb-4">Configuration Management</h2>
                 <p className="text-gray-500 mb-6">
                   Export your settings to a file or import them from a backup.

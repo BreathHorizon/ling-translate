@@ -3,6 +3,8 @@ export interface ModelConfig {
   name: string;
   maxTokens: number;
   maxParagraphs: number;
+  concurrency?: number;
+  requestsPerSecond?: number;
   systemPrompt: string;
   prompt: string;
   systemMultiplePrompt: string;
@@ -27,6 +29,7 @@ export interface UserSettings {
   defaultModelId: string; // Format: "apiId:modelId"
   sitePreferences: Record<string, SitePreference>;
   apiConfigs: ApiConfig[];
+  showLoadingIcon: boolean;
 }
 
 export type ExtensionMessage = 
@@ -72,4 +75,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   defaultModelId: 'default-api:default-model',
   sitePreferences: {},
   apiConfigs: [],
+  showLoadingIcon: true,
 };

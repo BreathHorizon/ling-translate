@@ -3,13 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Github, Globe } from 'lucide-react';
 
 export const About: React.FC = () => {
+  const version = chrome.runtime.getManifest().version;
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">About Ling Translate</h2>
       
       <Card>
         <CardHeader>
-          <CardTitle>Ling Translate v0.0.1</CardTitle>
+          <CardTitle>Ling Translate v{version}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-gray-600">
