@@ -1,17 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ApiConfig } from './components/ApiConfig';
 import { ModelConfig } from './components/ModelConfig';
 import { About } from './components/About';
 import { useStore } from '@/store/useStore';
+import { Button } from '@/components/ui/Button';
+import { Download, Upload } from 'lucide-react';
 
 const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
-  const { loadSettings, isLoading } = useStore();
+  const { loadSettings, isLoading, settings, updateSettings } = useStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const handleExport = () => {
+    const dataStr = JSON.stringify(settings, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `ling-translate-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (event.target.files && event.target.files.length > 0) {
+      fileReader.readAsText(event.target.files[0], "UTF-8");
+      fileReader.onload = async (e) => {
+        if (e.target?.result) {
+          try {
+            const importedSettings = JSON.parse(e.target.result as string);
+            if (importedSettings && typeof importedSettings === 'object') {
+                await updateSettings(importedSettings);
+                alert('Settings imported successfully!');
+            } else {
+                alert('Invalid settings file.');
+            }
+          } catch (error) {
+            console.error('Error parsing settings file:', error);
+            alert('Error parsing settings file.');
+          }
+        }
+        // Reset the input so the same file can be selected again if needed
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      };
+    }
+  };
 
   if (isLoading) {
     return (
@@ -27,11 +69,37 @@ const Options: React.FC = () => {
       <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen">
         <div className="max-w-4xl mx-auto pb-12">
           {activeTab === 'general' && (
-            <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-              <h2 className="text-2xl font-bold mb-4">General Settings</h2>
-              <p className="text-gray-500">
-                Welcome to Ling Translate! Please configure your API and Models to get started.
-              </p>
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <h2 className="text-2xl font-bold mb-4">General Settings</h2>
+                <p className="text-gray-500">
+                  Welcome to Ling Translate! Please configure your API and Models to get started.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold mb-4">Configuration Management</h2>
+                <p className="text-gray-500 mb-6">
+                  Export your settings to a file or import them from a backup.
+                </p>
+                <div className="flex gap-4">
+                  <Button onClick={handleExport} className="flex items-center gap-2">
+                    <Download className="w-4 h-4" />
+                    Export Settings
+                  </Button>
+                  <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Import Settings
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImport}
+                    accept=".json"
+                    className="hidden"
+                  />
+                </div>
+              </div>
             </div>
           )}
           {activeTab === 'apis' && <ApiConfig />}
