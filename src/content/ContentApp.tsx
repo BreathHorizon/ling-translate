@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 
-const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, dt, dd, figcaption';
 const MIN_LOADING_MS = 200;
 
 const getAllTranslatableGroups = () => {
@@ -187,26 +186,9 @@ const ContentApp: React.FC = () => {
       const limit = createRequestLimiter(concurrency, requestsPerSecond);
       const showLoadingIcon = currentSettings.showLoadingIcon ?? true;
       
-      const paragraphs = Array.from(document.querySelectorAll(TARGET_SELECTOR))
-        .filter((el): el is HTMLElement => el instanceof HTMLElement);
-      
-      const visibleParagraphs = paragraphs.filter(p => {
-        const rect = p.getBoundingClientRect();
-        const hasText = p.textContent?.trim();
-        const translatedLang = p.getAttribute('data-translated-lang');
-        // Check if element is at least partially visible in viewport
-        const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
-        return isVisible && Boolean(hasText) && translatedLang !== targetLanguage;
-      });
-
-      // Filter out nested elements to prevent double translation
-      const distinctParagraphs = visibleParagraphs.filter(p => {
-        return !visibleParagraphs.some(other => other !== p && other.contains(p));
-      });
-
-      const elementsToTranslate = distinctParagraphs.slice(0, maxParagraphs);
       const groups = getAllTranslatableGroups();
-      const elementsToTranslate = Array.from(groups.entries());
+      const allElements = Array.from(groups.entries());
+      const elementsToTranslate = allElements.slice(0, maxParagraphs);
 
       const translationTasks = elementsToTranslate.map(async ([element, textNodes]) => {
         if (textNodes.length === 0) return;
@@ -377,7 +359,7 @@ const ContentApp: React.FC = () => {
           "w-8 h-8 rounded-l-lg shadow-xl flex items-center justify-center transition-all duration-300 z-50",
           "bg-primary text-white hover:bg-primary-dark hover:w-10 active:scale-95",
           "dark:bg-primary-dark dark:text-gray-100",
-          !isHovered && !showMenu && "opacity-50 hover:opacity-100 translate-x-2 hover:translate-x-0", // Semi-hide when idle
+          // !isHovered && !showMenu && "opacity-50 hover:opacity-100 translate-x-2 hover:translate-x-0", // Semi-hide when idle
           isTranslating && "cursor-wait opacity-80"
         )}
       >
