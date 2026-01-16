@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 
-const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li';
+const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, dt, dd, figcaption';
 const MIN_LOADING_MS = 200;
 
 const getTranslatableTextNodes = (element: Element) => {
@@ -150,7 +150,7 @@ const ContentApp: React.FC = () => {
         .find(api => api.id === apiId)
         ?.models.find(model => model.id === modelId);
 
-      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 5);
+      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 50);
       const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
       const requestsPerSecond = Math.max(
         1,
@@ -166,10 +166,17 @@ const ContentApp: React.FC = () => {
         const rect = p.getBoundingClientRect();
         const hasText = p.textContent?.trim();
         const translatedLang = p.getAttribute('data-translated-lang');
-        return rect.top >= 0 && rect.bottom <= window.innerHeight && Boolean(hasText) && translatedLang !== targetLanguage;
+        // Check if element is at least partially visible in viewport
+        const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
+        return isVisible && Boolean(hasText) && translatedLang !== targetLanguage;
       });
 
-      const elementsToTranslate = visibleParagraphs.slice(0, maxParagraphs);
+      // Filter out nested elements to prevent double translation
+      const distinctParagraphs = visibleParagraphs.filter(p => {
+        return !visibleParagraphs.some(other => other !== p && other.contains(p));
+      });
+
+      const elementsToTranslate = distinctParagraphs.slice(0, maxParagraphs);
 
       const translationTasks = elementsToTranslate.map(async (element) => {
         const textNodes = getTranslatableTextNodes(element);
