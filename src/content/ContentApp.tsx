@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 
+const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, dt, dd, figcaption';
 const MIN_LOADING_MS = 200;
 
 const getAllTranslatableGroups = () => {
@@ -175,6 +176,7 @@ const ContentApp: React.FC = () => {
         .find(api => api.id === apiId)
         ?.models.find(model => model.id === modelId);
 
+      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 50);
       // Ignore maxParagraphs limit for whole page translation as per user request
       // const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 5); 
       const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
@@ -185,6 +187,24 @@ const ContentApp: React.FC = () => {
       const limit = createRequestLimiter(concurrency, requestsPerSecond);
       const showLoadingIcon = currentSettings.showLoadingIcon ?? true;
       
+      const paragraphs = Array.from(document.querySelectorAll(TARGET_SELECTOR))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement);
+      
+      const visibleParagraphs = paragraphs.filter(p => {
+        const rect = p.getBoundingClientRect();
+        const hasText = p.textContent?.trim();
+        const translatedLang = p.getAttribute('data-translated-lang');
+        // Check if element is at least partially visible in viewport
+        const isVisible = rect.bottom > 0 && rect.top < window.innerHeight;
+        return isVisible && Boolean(hasText) && translatedLang !== targetLanguage;
+      });
+
+      // Filter out nested elements to prevent double translation
+      const distinctParagraphs = visibleParagraphs.filter(p => {
+        return !visibleParagraphs.some(other => other !== p && other.contains(p));
+      });
+
+      const elementsToTranslate = distinctParagraphs.slice(0, maxParagraphs);
       const groups = getAllTranslatableGroups();
       const elementsToTranslate = Array.from(groups.entries());
 

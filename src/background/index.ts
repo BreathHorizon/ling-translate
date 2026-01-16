@@ -4,6 +4,17 @@ import { sha256 } from '@/lib/utils';
 
 console.log('Background script loaded');
 
+const LANG_CODE_TO_NAME: Record<string, string> = {
+  'zh-CN': 'Chinese (Simplified)',
+  'en': 'English',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'fr': 'French',
+  'de': 'German',
+  'es': 'Spanish',
+  'auto': 'auto-detect',
+};
+
 const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSecond: number) => {
   let concurrency = Math.max(1, initialConcurrency);
   let requestsPerSecond = Math.max(1, initialRequestsPerSecond);
@@ -97,7 +108,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   if (message.type === 'TRANSLATE_TEXT') {
     handleTranslation(message.payload).then(sendResponse);
-    return true; // Keep channel open for async response
+    return true;
   }
   if (message.type === 'OPEN_OPTIONS_PAGE') {
     chrome.runtime.openOptionsPage();
@@ -140,7 +151,7 @@ async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ suc
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,
-        max_tokens: 500 // Increased tokens for longer text
+        max_tokens: 500
       })
     });
 
@@ -162,10 +173,8 @@ async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ suc
 
 async function testConnection(baseUrl: string, apiKey: string): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    // Ensure baseUrl doesn't end with slash
     const cleanUrl = baseUrl.replace(/\/$/, '');
     
-    // Try listing models first as it's a lightweight GET request
     const response = await fetch(`${cleanUrl}/models`, {
       method: 'GET',
       headers: {
@@ -197,7 +206,6 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
      return { success: false, error: 'No model selected' };
   }
 
-  // Check Cache
   const cacheKeyBase = `${payload.text}-${payload.to}-${payload.modelId}`;
   const cacheKey = await sha256(cacheKeyBase);
   const cachedTranslation = await getCache(cacheKey);
@@ -228,7 +236,6 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
     );
     const translatedText = await limiter.enqueue(() => callOpenAI(payload.text, payload.to, apiConfig, modelConfig));
     
-    // Save to Cache
     await setCache(cacheKey, translatedText, payload.text);
 
     return {
@@ -244,9 +251,9 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
 }
 
 async function callOpenAI(text: string, targetLang: string, api: ApiConfig, model: ModelConfig): Promise<string> {
-  // Replace variables in prompt
-  const systemPrompt = model.systemPrompt.replace('{{to}}', targetLang);
-  const userPrompt = model.prompt.replace('{{to}}', targetLang).replace('{{text}}', text);
+  const langName = LANG_CODE_TO_NAME[targetLang] || targetLang;
+  const systemPrompt = model.systemPrompt.replace('{{to}}', langName);
+  const userPrompt = model.prompt.replace('{{to}}', langName).replace('{{text}}', text);
 
   const response = await fetch(`${api.baseUrl}/chat/completions`, {
     method: 'POST',
