@@ -1,10 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { Languages, Settings, Loader2, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Languages, Settings, Loader2, X, AlertCircle, RefreshCw, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
+import { logger } from '@/lib/logger';
 
-const MIN_LOADING_MS = 200;
+const MIN_LOADING_MS = 300; // Increased slightly for better visual stability
+const SCROLL_THROTTLE_MS = 300;
+const MAX_RETRIES = 3;
+
+interface TranslationItem {
+  id: string;
+  element: HTMLElement;
+  parts: {
+    node: Text;
+    originalText: string;
+    status: 'pending' | 'translating' | 'success' | 'error';
+    translatedText?: string;
+  }[];
+  status: 'idle' | 'pending' | 'translating' | 'success' | 'error';
+  retryCount: number;
+  isVisible: boolean;
+}
+
+// Custom SVG Spinner to match requirements (16x16)
+// Removed spinner logic as per new requirements
+
+// Inject styles for spinner animation and badge
+const injectStyles = () => {
+  const styleId = 'ling-translate-styles';
+  if (document.getElementById(styleId)) return;
+
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = `
+    .ling-translate-error {
+      color: #ef4444;
+      cursor: help;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+};
+
+// attachLoadingBadge removed
 
 const getAllTranslatableGroups = () => {
   const walker = document.createTreeWalker(
@@ -27,14 +65,8 @@ const getAllTranslatableGroups = () => {
         // Skip if already translated
         if (parent.getAttribute('data-translated') === 'true') return NodeFilter.FILTER_REJECT;
 
-        // Visibility check
-        if (parent.checkVisibility) {
-            if (!parent.checkVisibility()) return NodeFilter.FILTER_REJECT;
-        } else {
-            const style = window.getComputedStyle(parent);
-            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return NodeFilter.FILTER_REJECT;
-        }
-
+        // Note: We do NOT check visibility here anymore, we collect everything and let IntersectionObserver handle priority
+        
         return NodeFilter.FILTER_ACCEPT;
       }
     }
@@ -45,46 +77,18 @@ const getAllTranslatableGroups = () => {
     const node = walker.currentNode as Text;
     const parent = node.parentElement;
     if (parent) {
-      if (!groups.has(parent)) {
-        groups.set(parent, []);
+      const group = groups.get(parent);
+      if (group) {
+        group.push(node);
+      } else {
+        groups.set(parent, [node]);
       }
-      groups.get(parent)?.push(node);
     }
   }
   return groups;
 };
 
-const attachLoadingBadge = (element: HTMLElement) => {
-  if (element.querySelector('[data-translate-loading="true"]')) return null;
-
-  const badge = document.createElement('span');
-  badge.setAttribute('data-translate-loading', 'true');
-  badge.setAttribute('aria-hidden', 'true');
-  badge.style.display = 'inline-block';
-  badge.style.width = '0.8em';
-  badge.style.height = '0.8em';
-  badge.style.marginLeft = '0.35em';
-  badge.style.border = '2px solid currentColor';
-  badge.style.borderTopColor = 'transparent';
-  badge.style.borderRadius = '999px';
-  badge.style.verticalAlign = 'middle';
-  badge.style.boxSizing = 'border-box';
-  badge.style.opacity = '0.75';
-  badge.style.animation = 'ling-translate-spin 0.8s linear infinite';
-
-  const styleId = 'ling-translate-loading-style';
-  if (!document.getElementById(styleId)) {
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = '@keyframes ling-translate-spin { to { transform: rotate(360deg); } }';
-    (document.head || document.documentElement).appendChild(style);
-  }
-
-  element.appendChild(badge);
-  return badge;
-};
-
-// Promise-based limiter to respect both concurrency and rate limits
+// Promise-based limiter
 const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSecond: number) => {
   const concurrency = Math.max(1, initialConcurrency);
   const requestsPerSecond = Math.max(1, initialRequestsPerSecond);
@@ -147,19 +151,157 @@ const ContentApp: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const { settings, loadSettings, updateSettings } = useStore();
 
+  // Translation State
+  const translationItemsRef = useRef<Map<HTMLElement, TranslationItem>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const limiterRef = useRef<ReturnType<typeof createRequestLimiter> | null>(null);
+
   useEffect(() => {
     loadSettings();
+    injectStyles();
+    return () => {
+      observerRef.current?.disconnect();
+    };
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (settings.developer) {
+      logger.updateSettings(settings.developer);
+    }
+  }, [settings.developer]);
+
+  const processTranslation = async (item: TranslationItem) => {
+    if (item.status === 'translating' || item.status === 'success') return;
+
+    const currentSettings = useStore.getState().settings;
+    const limiter = limiterRef.current;
+    
+    if (!limiter) return;
+
+    item.status = 'translating';
+    logger.dom('Processing item:', item.id, item.element);
+    
+    if (currentSettings.showLoadingIcon) {
+        // Apply "..." suffix to all parts to indicate loading
+        item.parts.forEach(part => {
+           if (part.status === 'pending') {
+               part.node.textContent = part.originalText + '...';
+           }
+        });
+        logger.dom('Applied loading suffix for item:', item.id);
+    }
+
+    const loadingStart = Date.now();
+
+    try {
+      // Process all parts that need translation
+      const pendingParts = item.parts.filter(p => p.status === 'pending' || p.status === 'error');
+      
+      if (pendingParts.length === 0) {
+        item.status = 'success';
+        return;
+      }
+
+      await limiter(async () => {
+        const targetLanguage = currentSettings.defaultToLang;
+        const sourceLanguage = currentSettings.defaultFromLang;
+        
+        // Translate each part individually to preserve DOM placement
+        // Use Promise.all to run them concurrently (up to limiter's capacity if we wrapped inside)
+        // But here we are INSIDE the limiter. So we shouldn't block for too long.
+        // Actually, we should probably schedule each part as a separate task in the limiter?
+        // But `processTranslation` is called once per item.
+        
+        // Let's iterate and translate.
+        for (const part of pendingParts) {
+             part.status = 'translating';
+             const originalText = part.originalText;
+             
+             logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
+
+             const request: TranslationRequest = {
+                 type: 'TRANSLATE_TEXT',
+                 payload: {
+                   text: originalText,
+                   from: sourceLanguage,
+                   to: targetLanguage,
+                   contentType: 'text',
+                   modelId: currentSettings.defaultModelId
+                 }
+             };
+
+             try {
+                 const networkStart = Date.now();
+                 const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
+                 const networkDuration = Date.now() - networkStart;
+                 
+                 logger.network(`Part request took ${networkDuration}ms`, response.success ? 'Success' : 'Failed');
+    
+                 if (response.success && response.data) {
+                    part.translatedText = response.data.translatedText;
+                    part.status = 'success';
+                    
+                    // Update DOM immediately
+                    logger.dom('Updating text node:', part.node);
+                    part.node.textContent = response.data.translatedText;
+                 } else {
+                    part.status = 'error';
+                    logger.translation('Part failed:', response.error);
+                 }
+             } catch (err) {
+                 part.status = 'error';
+                 console.error(err);
+             }
+        }
+        
+        // Check if all parts success
+        const allSuccess = item.parts.every(p => p.status === 'success');
+        const anyError = item.parts.some(p => p.status === 'error');
+        
+        if (allSuccess) {
+           item.status = 'success';
+           item.element.setAttribute('data-translated', 'true');
+           item.element.setAttribute('data-translated-lang', targetLanguage);
+           // We can't set title easily for multiple parts, maybe just set "Translated"
+           item.element.setAttribute('title', 'Translated');
+        } else if (anyError) {
+           throw new Error('Some parts failed to translate');
+        }
+      });
+    } catch (error) {
+      console.error('Translation error:', error);
+      item.retryCount++;
+      if (item.retryCount < MAX_RETRIES) {
+        item.status = 'pending'; // Reset to pending to retry
+        logger.info(`Retrying translation for item ${item.id} (Attempt ${item.retryCount + 1}/${MAX_RETRIES})`);
+        setTimeout(() => processTranslation(item), 1000 * item.retryCount);
+      } else {
+        item.status = 'error';
+        // Reset text content on error
+        item.parts.forEach(part => {
+             part.node.textContent = part.originalText;
+        });
+        logger.info(`Translation failed permanently for item ${item.id}`);
+      }
+    } finally {
+       // No cleanup needed for text suffix
+    }
+  };
 
   const handleTranslate = async () => {
     if (isTranslating) return;
     
-    // Refresh settings to ensure latest
+    // Cleanup previous observer if exists
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    
     await loadSettings();
     const currentSettings = useStore.getState().settings;
 
     if (!currentSettings.defaultModelId) {
-      if (confirm('No translation model selected. Would you like to configure one now?')) {
+      if (confirm('No translation model selected. Configure now?')) {
         chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
       }
       return;
@@ -167,101 +309,81 @@ const ContentApp: React.FC = () => {
 
     setIsTranslating(true);
     
-    try {
-      const targetLanguage = currentSettings.defaultToLang;
-      const sourceLanguage = currentSettings.defaultFromLang;
-      const [apiId, modelId] = currentSettings.defaultModelId.split(':');
-      const modelConfig = currentSettings.apiConfigs
-        .find(api => api.id === apiId)
-        ?.models.find(model => model.id === modelId);
-
-      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 50);
-      // Ignore maxParagraphs limit for whole page translation as per user request
-      // const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 5); 
-      const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
-      const requestsPerSecond = Math.max(
-        1,
-        modelConfig?.requestsPerSecond ?? modelConfig?.concurrency ?? 12
-      );
-      const limit = createRequestLimiter(concurrency, requestsPerSecond);
-      const showLoadingIcon = currentSettings.showLoadingIcon ?? true;
+    // Setup Limiter
+    const [apiId, modelId] = currentSettings.defaultModelId.split(':');
+    const modelConfig = currentSettings.apiConfigs
+      .find(api => api.id === apiId)
+      ?.models.find(model => model.id === modelId);
       
-      const groups = getAllTranslatableGroups();
-      const elementsToTranslate = Array.from(groups.entries());
+    const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
+    const requestsPerSecond = Math.max(1, modelConfig?.requestsPerSecond ?? 12);
+    limiterRef.current = createRequestLimiter(concurrency, requestsPerSecond);
 
-      const translationTasks = elementsToTranslate.map(async ([element, textNodes]) => {
-        if (textNodes.length === 0) return;
+    // 1. Scan DOM
+    const groups = getAllTranslatableGroups();
+    const itemsMap = new Map<HTMLElement, TranslationItem>();
 
-        const originalText = textNodes
-          .map(node => node.textContent?.trim() || '')
-          .filter(Boolean)
-          .join('\n');
+    groups.forEach((textNodes, element) => {
+      // Create parts from textNodes
+      const parts = textNodes.map(node => ({
+        node,
+        originalText: node.textContent || '',
+        status: 'pending' as const
+      })).filter(p => p.originalText.trim().length > 0);
 
-        let hasTranslated = false;
-        const loadingBadge = showLoadingIcon ? attachLoadingBadge(element) : null;
-        const loadingStart = loadingBadge ? Date.now() : 0;
+      if (parts.length === 0) return;
 
-        const nodeTasks = textNodes.map((node) => {
-          const text = node.textContent || '';
-          const trimmed = text.trim();
-          if (!trimmed) return null;
+      itemsMap.set(element, {
+        id: Math.random().toString(36).substr(2, 9),
+        element,
+        parts,
+        status: 'pending',
+        retryCount: 0,
+        isVisible: false
+      });
+    });
 
-          const leadingWhitespace = text.match(/^\s*/)?.[0] ?? '';
-          const trailingWhitespace = text.match(/\s*$/)?.[0] ?? '';
+    translationItemsRef.current = itemsMap;
 
-          return limit(async () => {
-            try {
-              const request: TranslationRequest = {
-                type: 'TRANSLATE_TEXT',
-                payload: {
-                  text: trimmed,
-                  from: sourceLanguage,
-                  to: targetLanguage,
-                  contentType: 'text',
-                  modelId: currentSettings.defaultModelId
-                }
-              };
-  
-              const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
-              
-              if (response.success && response.data) {
-                node.textContent = `${leadingWhitespace}${response.data.translatedText}${trailingWhitespace}`;
-                hasTranslated = true;
-              } else {
-                console.error('Translation failed for:', trimmed, response.error);
-              }
-            } catch (err) {
-              console.error('Translation request error for:', trimmed, err);
+    // 2. Setup IntersectionObserver
+    // Root margin 200px to pre-load content just outside viewport
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const item = itemsMap.get(entry.target as HTMLElement);
+        if (!item) return;
+
+        if (entry.isIntersecting) {
+            item.isVisible = true;
+            // If pending, trigger translation
+            if (item.status === 'pending') {
+                processTranslation(item);
             }
-          });
-        }).filter(Boolean) as Promise<void>[];
-
-        await Promise.all(nodeTasks);
-
-        if (loadingBadge) {
-          const elapsed = Date.now() - loadingStart;
-          if (elapsed < MIN_LOADING_MS) {
-            await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS - elapsed));
-          }
-          loadingBadge.remove();
-        }
-
-        if (originalText && hasTranslated) {
-          element.setAttribute('title', originalText);
-        }
-        if (hasTranslated) {
-          element.setAttribute('data-translated', 'true');
-          element.setAttribute('data-translated-lang', targetLanguage);
+        } else {
+            item.isVisible = false;
         }
       });
+    }, {
+        rootMargin: '200px',
+        threshold: 0.1
+    });
 
-      await Promise.all(translationTasks);
+    observerRef.current = observer;
 
-    } catch (error) {
-      console.error('Translation process error:', error);
-    } finally {
-      setIsTranslating(false);
-    }
+    // 3. Start observing
+    itemsMap.forEach((item) => {
+        observer.observe(item.element);
+    });
+
+    // Note: We don't set isTranslating to false immediately because the process is continuous (scroll-based).
+    // But we might want to toggle the button state?
+    // User requirement: "Translation execution logic...".
+    // If we leave the button as "Translating..." forever, it might be confusing.
+    // Maybe change button to "Stop" or just reset it after initialization?
+    // Let's keep it 'true' while we are in "Translation Mode".
+    // But maybe we should allow "Scanning done" state?
+    // For now, let's keep it simple: The button triggered the "mode".
+    // We can set isTranslating to false after scanning, but the observers keep running.
+    setIsTranslating(false); 
   };
 
   const supportedLanguages = [
@@ -272,6 +394,9 @@ const ContentApp: React.FC = () => {
     { code: 'fr', name: 'French' },
     { code: 'de', name: 'German' },
     { code: 'es', name: 'Spanish' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'it', name: 'Italian' },
   ];
 
   // Flatten models for selection
@@ -332,6 +457,63 @@ const ContentApp: React.FC = () => {
               >
                  More Settings
               </button>
+              
+              <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                   <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                     <Terminal className="w-3 h-3" /> Developer Mode
+                   </h4>
+                   <label className="relative inline-flex items-center cursor-pointer">
+                     <input 
+                       type="checkbox" 
+                       className="sr-only peer"
+                       checked={settings.developer?.enabled ?? false}
+                       onChange={(e) => updateSettings({ 
+                         developer: { ...settings.developer, enabled: e.target.checked } 
+                       })}
+                     />
+                     <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                   </label>
+                </div>
+                
+                {(settings.developer?.enabled) && (
+                  <div className="space-y-2 pl-1">
+                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={settings.developer?.logDom ?? false}
+                        onChange={(e) => updateSettings({ 
+                          developer: { ...settings.developer, logDom: e.target.checked } 
+                        })}
+                      />
+                      Log DOM Operations
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={settings.developer?.logTranslation ?? false}
+                        onChange={(e) => updateSettings({ 
+                          developer: { ...settings.developer, logTranslation: e.target.checked } 
+                        })}
+                      />
+                      Log Translation Content
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={settings.developer?.logNetwork ?? false}
+                        onChange={(e) => updateSettings({ 
+                          developer: { ...settings.developer, logNetwork: e.target.checked } 
+                        })}
+                      />
+                      Log Network Requests
+                    </label>
+                  </div>
+                )}
+              </div>
            </div>
         </div>
       )}
@@ -358,7 +540,6 @@ const ContentApp: React.FC = () => {
           "w-8 h-8 rounded-l-lg shadow-xl flex items-center justify-center transition-all duration-300 z-50",
           "bg-primary text-white hover:bg-primary-dark hover:w-10 active:scale-95",
           "dark:bg-primary-dark dark:text-gray-100",
-          // !isHovered && !showMenu && "opacity-50 hover:opacity-100 translate-x-2 hover:translate-x-0", // Semi-hide when idle
           isTranslating && "cursor-wait opacity-80"
         )}
       >

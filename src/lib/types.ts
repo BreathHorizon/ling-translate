@@ -23,6 +23,13 @@ export interface SitePreference {
   preference: 'always' | 'never' | 'ask';
 }
 
+export interface DeveloperSettings {
+  enabled: boolean;
+  logDom: boolean;
+  logTranslation: boolean;
+  logNetwork: boolean;
+}
+
 export interface UserSettings {
   defaultFromLang: string;
   defaultToLang: string;
@@ -30,6 +37,7 @@ export interface UserSettings {
   sitePreferences: Record<string, SitePreference>;
   apiConfigs: ApiConfig[];
   showLoadingIcon: boolean;
+  developer: DeveloperSettings;
 }
 
 export type ExtensionMessage = 
@@ -76,4 +84,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   sitePreferences: {},
   apiConfigs: [],
   showLoadingIcon: true,
+  developer: {
+    enabled: false,
+    logDom: false,
+    logTranslation: false,
+    logNetwork: false
+  }
 };

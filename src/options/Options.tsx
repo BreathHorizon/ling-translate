@@ -5,11 +5,11 @@ import { ModelConfig } from './components/ModelConfig';
 import { About } from './components/About';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
-import { Download, Upload } from 'lucide-react';
+import { Download, Upload, Terminal, AlertTriangle } from 'lucide-react';
 
 const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
-  const { loadSettings, isLoading, settings, updateSettings } = useStore();
+  const { loadSettings, isLoading, settings, updateSettings, resetSettings } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +52,13 @@ const Options: React.FC = () => {
           fileInputRef.current.value = '';
         }
       };
+    }
+  };
+
+  const handleResetSettings = async () => {
+    if (confirm('Are you sure you want to clear all settings? This action cannot be undone and will reset everything to default.')) {
+        await resetSettings();
+        alert('All settings have been reset to default.');
     }
   };
 
@@ -112,6 +119,85 @@ const Options: React.FC = () => {
                     className="hidden"
                   />
                 </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                   <Terminal className="w-5 h-5 text-gray-700" />
+                   Developer Settings
+                 </h2>
+                 <p className="text-gray-500 mb-6">
+                   Advanced options for debugging and development.
+                 </p>
+                 
+                 <div className="space-y-4">
+                   <label className="flex items-center gap-3 text-sm text-gray-700 font-medium">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={settings.developer?.enabled ?? false}
+                        onChange={(e) => updateSettings({ 
+                          developer: { ...settings.developer, enabled: e.target.checked } 
+                        })}
+                      />
+                      Enable Developer Mode
+                   </label>
+
+                   {(settings.developer?.enabled) && (
+                     <div className="pl-7 space-y-3">
+                       <label className="flex items-center gap-3 text-sm text-gray-600">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={settings.developer?.logDom ?? false}
+                            onChange={(e) => updateSettings({ 
+                              developer: { ...settings.developer, logDom: e.target.checked } 
+                            })}
+                          />
+                          Log DOM Operations
+                       </label>
+                       <label className="flex items-center gap-3 text-sm text-gray-600">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={settings.developer?.logTranslation ?? false}
+                            onChange={(e) => updateSettings({ 
+                              developer: { ...settings.developer, logTranslation: e.target.checked } 
+                            })}
+                          />
+                          Log Translation Content
+                       </label>
+                       <label className="flex items-center gap-3 text-sm text-gray-600">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={settings.developer?.logNetwork ?? false}
+                            onChange={(e) => updateSettings({ 
+                              developer: { ...settings.developer, logNetwork: e.target.checked } 
+                            })}
+                          />
+                          Log Network Requests
+                       </label>
+                     </div>
+                   )}
+                 </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-red-200 bg-red-50/30">
+                <h2 className="text-xl font-bold mb-4 text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Danger Zone
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Actions here can cause data loss and cannot be undone.
+                </p>
+                <Button 
+                  onClick={handleResetSettings} 
+                  variant="outline" 
+                  className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                >
+                  Clear All Settings
+                </Button>
               </div>
             </div>
           )}

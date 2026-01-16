@@ -10,6 +10,7 @@ interface StoreState {
   addApiConfig: (config: ApiConfig) => Promise<void>;
   updateApiConfig: (config: ApiConfig) => Promise<void>;
   deleteApiConfig: (id: string) => Promise<void>;
+  resetSettings: () => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -51,5 +52,9 @@ export const useStore = create<StoreState>((set, get) => ({
     };
     set({ settings: updatedSettings });
     await saveSettings(updatedSettings);
+  },
+  resetSettings: async () => {
+    set({ settings: DEFAULT_SETTINGS });
+    await saveSettings(DEFAULT_SETTINGS);
   },
 }));
