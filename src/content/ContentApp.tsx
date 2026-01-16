@@ -7,26 +7,52 @@ import { useStore } from '@/store/useStore';
 const TARGET_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, dt, dd, figcaption';
 const MIN_LOADING_MS = 200;
 
-const getTranslatableTextNodes = (element: Element) => {
+const getAllTranslatableGroups = () => {
   const walker = document.createTreeWalker(
-    element,
+    document.body,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode: (node) => {
         if (!node.textContent?.trim()) return NodeFilter.FILTER_SKIP;
-        const parentTag = (node.parentElement?.tagName || '').toLowerCase();
-        if (['script', 'style', 'noscript'].includes(parentTag)) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+
+        const tagName = parent.tagName.toLowerCase();
+        if (['script', 'style', 'noscript', 'code', 'pre', 'textarea', 'input', 'select', 'option', 'svg', 'path', 'img', 'video', 'audio', 'iframe'].includes(tagName)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        // Skip if editable
+        if (parent.isContentEditable) return NodeFilter.FILTER_REJECT;
+
+        // Skip if already translated
+        if (parent.getAttribute('data-translated') === 'true') return NodeFilter.FILTER_REJECT;
+
+        // Visibility check
+        if (parent.checkVisibility) {
+            if (!parent.checkVisibility()) return NodeFilter.FILTER_REJECT;
+        } else {
+            const style = window.getComputedStyle(parent);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return NodeFilter.FILTER_REJECT;
+        }
+
         return NodeFilter.FILTER_ACCEPT;
       }
     }
   );
 
-  const nodes: Array<{ node: Text; text: string }> = [];
+  const groups = new Map<HTMLElement, Text[]>();
   while (walker.nextNode()) {
-    const current = walker.currentNode as Text;
-    nodes.push({ node: current, text: current.textContent || '' });
+    const node = walker.currentNode as Text;
+    const parent = node.parentElement;
+    if (parent) {
+      if (!groups.has(parent)) {
+        groups.set(parent, []);
+      }
+      groups.get(parent)?.push(node);
+    }
   }
-  return nodes;
+  return groups;
 };
 
 const attachLoadingBadge = (element: HTMLElement) => {
@@ -151,6 +177,8 @@ const ContentApp: React.FC = () => {
         ?.models.find(model => model.id === modelId);
 
       const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 50);
+      // Ignore maxParagraphs limit for whole page translation as per user request
+      // const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 5); 
       const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
       const requestsPerSecond = Math.max(
         1,
@@ -177,13 +205,14 @@ const ContentApp: React.FC = () => {
       });
 
       const elementsToTranslate = distinctParagraphs.slice(0, maxParagraphs);
+      const groups = getAllTranslatableGroups();
+      const elementsToTranslate = Array.from(groups.entries());
 
-      const translationTasks = elementsToTranslate.map(async (element) => {
-        const textNodes = getTranslatableTextNodes(element);
+      const translationTasks = elementsToTranslate.map(async ([element, textNodes]) => {
         if (textNodes.length === 0) return;
 
         const originalText = textNodes
-          .map(({ text }) => text.trim())
+          .map(node => node.textContent?.trim() || '')
           .filter(Boolean)
           .join('\n');
 
@@ -191,7 +220,8 @@ const ContentApp: React.FC = () => {
         const loadingBadge = showLoadingIcon ? attachLoadingBadge(element) : null;
         const loadingStart = loadingBadge ? Date.now() : 0;
 
-        const nodeTasks = textNodes.map(({ node, text }) => {
+        const nodeTasks = textNodes.map((node) => {
+          const text = node.textContent || '';
           const trimmed = text.trim();
           if (!trimmed) return null;
 
