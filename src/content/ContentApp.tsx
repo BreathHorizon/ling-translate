@@ -187,8 +187,7 @@ const ContentApp: React.FC = () => {
       const showLoadingIcon = currentSettings.showLoadingIcon ?? true;
       
       const groups = getAllTranslatableGroups();
-      const allElements = Array.from(groups.entries());
-      const elementsToTranslate = allElements.slice(0, maxParagraphs);
+      const elementsToTranslate = Array.from(groups.entries());
 
       const translationTasks = elementsToTranslate.map(async ([element, textNodes]) => {
         if (textNodes.length === 0) return;

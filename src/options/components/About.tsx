@@ -4,7 +4,7 @@ import { Github, Globe } from 'lucide-react';
 
 export const About: React.FC = () => {
   const version = chrome.runtime.getManifest().version;
-  const build = 7;
+  const build = 8;
 
   return (
     <div className="space-y-6">

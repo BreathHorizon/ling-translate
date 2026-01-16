@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Ling Translate",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A Chrome extension for web translation with customizable AI models.",
-  "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_popup": "src/popup/index.html"
   },
@@ -18,8 +24,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/index.tsx"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/index.tsx"
+      ]
     }
   ]
 }
