@@ -1,10 +1,11 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Github, Globe } from 'lucide-react';
+import manifest from '../../manifest.json';
 
 export const About: React.FC = () => {
-  const version = chrome.runtime.getManifest().version;
-  const build = 8;
+  const version = manifest.version;
+  const build = 5;
 
   return (
     <div className="space-y-6">
@@ -12,7 +13,10 @@ export const About: React.FC = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle>Ling Translate v{version} (Build {build})</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Ling Translate v{version}</span>
+            <span className="text-sm font-normal text-gray-400">Build {build}</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-gray-600">
