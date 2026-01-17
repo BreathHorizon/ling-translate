@@ -29,23 +29,23 @@ export const AutoTranslateConfig: React.FC = () => {
        <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                <Globe className="w-5 h-5 text-primary" />
-               Auto-Translated Sites
+               自动翻译的网站
            </h2>
            <p className="text-gray-500 mb-4 text-sm">
-               Automatically translate these websites when you visit them.
+               访问这些网站时自动翻译。
            </p>
 
            <div className="mb-4">
                <input 
                    type="text" 
-                   placeholder="Enter domain (e.g., example.com) and press Enter"
+                   placeholder="输入域名（如 example.com），按回车添加"
                    className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
                    onKeyDown={handleAutoTranslateAdd}
                />
            </div>
 
            {(!settings?.autoTranslateDomains || settings.autoTranslateDomains.length === 0) ? (
-               <p className="text-gray-400 text-sm italic">No sites added yet.</p>
+               <p className="text-gray-400 text-sm italic">暂无添加的网站。</p>
            ) : (
                <div className="space-y-2">
                    {settings.autoTranslateDomains?.map(domain => (

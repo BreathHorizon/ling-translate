@@ -7,6 +7,21 @@ export const ThemeConfig: React.FC = () => {
   const { settings, updateSettings } = useStore();
   const floatingInputRef = useRef<HTMLInputElement>(null);
   const settingsInputRef = useRef<HTMLInputElement>(null);
+  const loadingStyleLabels: Record<string, string> = {
+    spinner: '旋转',
+    ellipsis: '省略号',
+    both: '旋转 + 省略号',
+    none: '无',
+  };
+  const toneLabels: Record<string, string> = {
+    light: '浅色',
+    dark: '深色',
+  };
+  const maskTypeLabels: Record<string, string> = {
+    auto: '自动',
+    light: '浅色',
+    dark: '深色',
+  };
 
   const [localTheme, setLocalTheme] = useState({
     mode: 'frosted' as const,
@@ -45,7 +60,7 @@ export const ThemeConfig: React.FC = () => {
       },
       loadingStyle: localTheme.loadingStyle,
     });
-    alert('Theme settings saved!');
+    alert('主题设置已保存！');
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'floating' | 'settings') => {
@@ -53,7 +68,7 @@ export const ThemeConfig: React.FC = () => {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image too large. Please select an image under 2MB.');
+      alert('图片过大，请选择 2MB 以内的图片。');
       return;
     }
 
@@ -81,16 +96,16 @@ export const ThemeConfig: React.FC = () => {
            <div className="flex items-center justify-between mb-6">
                <h2 className="text-xl font-bold flex items-center gap-2">
                    <Palette className="w-5 h-5 text-primary" />
-                   Appearance & Theme
+                   外观与主题
                </h2>
                <Button onClick={handleSave} className="flex items-center gap-2">
                    <Save className="w-4 h-4" />
-                   Save
+                   保存
                </Button>
            </div>
 
            <div className="mb-8 space-y-4">
-            <h3 className="font-semibold text-gray-700">Loading Indicator Style</h3>
+            <h3 className="font-semibold text-gray-700">加载指示器样式</h3>
             <div className="flex flex-wrap gap-4">
               {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
                 <label key={style} className="flex items-center gap-2 cursor-pointer">
@@ -102,14 +117,14 @@ export const ThemeConfig: React.FC = () => {
                     onChange={() => updateLocalTheme({ loadingStyle: style as typeof localTheme.loadingStyle })}
                     className="text-primary focus:ring-primary"
                   />
-                  <span className="capitalize text-sm text-gray-700">{style}</span>
+                  <span className="text-sm text-gray-700">{loadingStyleLabels[style] || style}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div className="mb-8 space-y-4">
-             <h3 className="font-semibold text-gray-700">Theme Mode</h3>
+             <h3 className="font-semibold text-gray-700">主题模式</h3>
              <div className="flex flex-wrap gap-4">
                <label className="flex items-center gap-2 cursor-pointer">
                  <input
@@ -120,7 +135,7 @@ export const ThemeConfig: React.FC = () => {
                    onChange={() => updateLocalTheme({ mode: 'frosted' })}
                    className="text-primary focus:ring-primary"
                  />
-                 <span className="text-sm text-gray-700">Frosted Glass</span>
+                 <span className="text-sm text-gray-700">磨砂玻璃</span>
                </label>
                <label className="flex items-center gap-2 cursor-pointer">
                  <input
@@ -131,7 +146,7 @@ export const ThemeConfig: React.FC = () => {
                    onChange={() => updateLocalTheme({ mode: 'wallpaper' })}
                    className="text-primary focus:ring-primary"
                  />
-                 <span className="text-sm text-gray-700">Custom Wallpaper</span>
+                 <span className="text-sm text-gray-700">自定义壁纸</span>
                </label>
              </div>
            </div>
@@ -139,7 +154,7 @@ export const ThemeConfig: React.FC = () => {
            {localTheme.mode === 'frosted' ? (
              <div className="space-y-6">
                <div className="space-y-4">
-                 <h3 className="font-semibold text-gray-700">Frosted Glass Tone</h3>
+                 <h3 className="font-semibold text-gray-700">磨砂玻璃色调</h3>
                  <div className="flex gap-4">
                    {(['light', 'dark'] as const).map((tone) => (
                      <label key={tone} className="flex items-center gap-2 cursor-pointer">
@@ -151,7 +166,7 @@ export const ThemeConfig: React.FC = () => {
                          onChange={() => updateLocalTheme({ frostedTone: tone })}
                          className="text-primary focus:ring-primary"
                        />
-                       <span className="capitalize text-sm text-gray-700">{tone}</span>
+                       <span className="text-sm text-gray-700">{toneLabels[tone] || tone}</span>
                      </label>
                    ))}
                  </div>
@@ -159,7 +174,7 @@ export const ThemeConfig: React.FC = () => {
 
                <div>
                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                   Frosted Opacity: {Math.round(localTheme.frostedOpacity * 100)}%
+                   磨砂透明度：{Math.round(localTheme.frostedOpacity * 100)}%
                  </label>
                  <input
                    type="range"
@@ -175,7 +190,7 @@ export const ThemeConfig: React.FC = () => {
            ) : (
              <div className="space-y-8">
                <div className="space-y-4">
-                 <h3 className="font-semibold text-gray-700">Wallpaper Mask</h3>
+                 <h3 className="font-semibold text-gray-700">壁纸遮罩</h3>
                  <div className="flex gap-4">
                    {(['auto', 'light', 'dark'] as const).map((type) => (
                      <label key={type} className="flex items-center gap-2 cursor-pointer">
@@ -187,14 +202,14 @@ export const ThemeConfig: React.FC = () => {
                          onChange={() => updateLocalTheme({ maskType: type })}
                          className="text-primary focus:ring-primary"
                        />
-                       <span className="capitalize text-sm text-gray-700">{type}</span>
+                       <span className="text-sm text-gray-700">{maskTypeLabels[type] || type}</span>
                      </label>
                    ))}
                  </div>
 
                  <div>
                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                     Mask Opacity: {Math.round(localTheme.maskOpacity * 100)}%
+                     遮罩不透明度：{Math.round(localTheme.maskOpacity * 100)}%
                    </label>
                    <input
                      type="range"
@@ -210,21 +225,21 @@ export const ThemeConfig: React.FC = () => {
                  <label className="flex items-center gap-3 text-sm text-gray-700">
                    <input
                      type="checkbox"
-                     className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                     checked={localTheme.syncFloatingWallpaperToSettingsButton ?? false}
-                     onChange={(e) => updateLocalTheme({ syncFloatingWallpaperToSettingsButton: e.target.checked })}
-                   />
-                   Sync floating wallpaper to settings button
+                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                   checked={localTheme.syncFloatingWallpaperToSettingsButton ?? false}
+                   onChange={(e) => updateLocalTheme({ syncFloatingWallpaperToSettingsButton: e.target.checked })}
+                 />
+                   将悬浮壁纸同步到设置按钮
                  </label>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div>
-                   <h3 className="font-semibold text-gray-700 mb-3">Floating Button Wallpaper</h3>
+                   <h3 className="font-semibold text-gray-700 mb-3">悬浮按钮壁纸</h3>
                    <div className="relative w-24 h-24 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50 hover:bg-gray-100 transition-colors group">
                      {localTheme.floatingWallpaper ? (
                        <>
-                         <img src={localTheme.floatingWallpaper} alt="Floating Wallpaper" className="w-full h-full object-cover" />
+                         <img src={localTheme.floatingWallpaper} alt="悬浮壁纸" className="w-full h-full object-cover" />
                          <button
                            onClick={() => clearWallpaper('floating')}
                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
@@ -235,7 +250,7 @@ export const ThemeConfig: React.FC = () => {
                      ) : (
                        <button onClick={() => floatingInputRef.current?.click()} className="flex flex-col items-center text-gray-400">
                          <Upload className="w-6 h-6 mb-1" />
-                         <span className="text-xs">Upload</span>
+                         <span className="text-xs">上传</span>
                        </button>
                      )}
                    </div>
@@ -249,11 +264,11 @@ export const ThemeConfig: React.FC = () => {
                  </div>
 
                  <div>
-                   <h3 className="font-semibold text-gray-700 mb-3">Settings Panel Wallpaper</h3>
+                   <h3 className="font-semibold text-gray-700 mb-3">设置面板壁纸</h3>
                    <div className="relative w-full max-w-xs h-40 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50 hover:bg-gray-100 transition-colors group">
                      {localTheme.settingsWallpaper ? (
                        <>
-                         <img src={localTheme.settingsWallpaper} alt="Settings Wallpaper" className="w-full h-full object-cover" />
+                         <img src={localTheme.settingsWallpaper} alt="设置面板壁纸" className="w-full h-full object-cover" />
                          <button
                            onClick={() => clearWallpaper('settings')}
                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
@@ -264,7 +279,7 @@ export const ThemeConfig: React.FC = () => {
                      ) : (
                        <button onClick={() => settingsInputRef.current?.click()} className="flex flex-col items-center text-gray-400">
                          <Upload className="w-8 h-8 mb-1" />
-                         <span className="text-xs">Upload</span>
+                         <span className="text-xs">上传</span>
                        </button>
                      )}
                    </div>

@@ -13,6 +13,12 @@ const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
   const { loadSettings, isLoading, settings, updateSettings, resetSettings } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const loadingStyleLabels: Record<string, string> = {
+    spinner: '旋转',
+    ellipsis: '省略号',
+    both: '旋转 + 省略号',
+    none: '无',
+  };
 
   useEffect(() => {
     loadSettings();
@@ -40,13 +46,13 @@ const Options: React.FC = () => {
             const importedSettings = JSON.parse(e.target.result as string);
             if (importedSettings && typeof importedSettings === 'object') {
                 await updateSettings(importedSettings);
-                alert('Settings imported successfully!');
+                alert('设置导入成功！');
             } else {
-                alert('Invalid settings file.');
+                alert('设置文件无效。');
             }
           } catch (error) {
             console.error('Error parsing settings file:', error);
-            alert('Error parsing settings file.');
+            alert('解析设置文件出错。');
           }
         }
         // Reset the input so the same file can be selected again if needed
@@ -58,9 +64,9 @@ const Options: React.FC = () => {
   };
 
   const handleResetSettings = async () => {
-    if (confirm('Are you sure you want to clear all settings? This action cannot be undone and will reset everything to default.')) {
+    if (confirm('确定要清除所有设置吗？此操作无法撤销，将恢复为默认值。')) {
         await resetSettings();
-        alert('All settings have been reset to default.');
+        alert('所有设置已恢复为默认值。');
     }
   };
 
@@ -80,16 +86,16 @@ const Options: React.FC = () => {
           {activeTab === 'general' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-2xl font-bold mb-4">General Settings</h2>
+                <h2 className="text-2xl font-bold mb-4">常规设置</h2>
                 <p className="text-gray-500">
-                  Welcome to Ling Translate! Please configure your API and Models to get started.
+                  欢迎使用 Ling Translate！请先配置 API 和模型以开始使用。
                 </p>
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Loading Indicator Style</h2>
+                <h2 className="text-xl font-bold mb-4">加载指示器样式</h2>
                 <p className="text-gray-500 mb-4">
-                  Choose how the loading indicator appears next to text being translated.
+                  选择翻译时文本旁的加载指示器显示方式。
                 </p>
                 <div className="flex flex-wrap gap-4">
                   {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
@@ -102,7 +108,7 @@ const Options: React.FC = () => {
                         onChange={() => updateSettings({ loadingStyle: style })}
                         className="text-primary focus:ring-primary w-4 h-4"
                       />
-                      <span className="capitalize text-sm text-gray-700 font-medium">{style}</span>
+                      <span className="text-sm text-gray-700 font-medium">{loadingStyleLabels[style] || style}</span>
                     </label>
                   ))}
                 </div>
@@ -110,7 +116,7 @@ const Options: React.FC = () => {
 
               {/* Visibility Settings */}
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Button Visibility</h2>
+                <h2 className="text-xl font-bold mb-4">按钮可见性</h2>
                 <div className="space-y-6">
                    <label className="flex items-center gap-3 text-sm text-gray-700">
                       <input
@@ -119,15 +125,15 @@ const Options: React.FC = () => {
                         checked={!settings.hideGlobalButton}
                         onChange={(e) => updateSettings({ hideGlobalButton: !e.target.checked })}
                       />
-                      Show floating translation button
+                      显示悬浮翻译按钮
                    </label>
                    
                    <div>
-                     <h3 className="text-sm font-medium text-gray-700 mb-2">Hidden Websites</h3>
-                     <p className="text-xs text-gray-500 mb-3">The floating button is hidden on these websites.</p>
+                     <h3 className="text-sm font-medium text-gray-700 mb-2">隐藏的网站</h3>
+                     <p className="text-xs text-gray-500 mb-3">悬浮按钮会在这些网站上隐藏。</p>
                      
                      {(!settings.hideDomains || settings.hideDomains.length === 0) ? (
-                        <p className="text-sm text-gray-400 italic">No hidden websites.</p>
+                        <p className="text-sm text-gray-400 italic">暂无隐藏网站。</p>
                      ) : (
                         <div className="space-y-2 max-h-40 overflow-y-auto">
                            {settings.hideDomains.map((domain) => (
@@ -138,7 +144,7 @@ const Options: React.FC = () => {
                                     hideDomains: settings.hideDomains?.filter(d => d !== domain) 
                                   })}
                                   className="text-red-500 hover:text-red-700 p-1"
-                                  title="Remove"
+                                  title="移除"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -154,12 +160,12 @@ const Options: React.FC = () => {
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                    <Keyboard className="w-5 h-5 text-gray-700" />
-                   Keyboard Shortcuts
+                   键盘快捷键
                 </h2>
                 <div className="space-y-4">
                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                         Toggle Translation
+                         切换翻译
                       </label>
                       <div className="flex gap-2">
                          <input
@@ -167,10 +173,10 @@ const Options: React.FC = () => {
                            readOnly
                            value={settings.shortcuts?.translate || 'Alt+A'}
                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary text-sm bg-gray-50 cursor-pointer"
-                           placeholder="Click to record shortcut..."
+                           placeholder="点击并录入快捷键..."
                            onClick={(e) => {
                                const input = e.currentTarget;
-                               input.value = 'Press keys...';
+                               input.value = '请按下按键...';
                                input.classList.add('animate-pulse', 'border-primary');
                                
                                const pressedKeys = new Set<string>();
@@ -210,10 +216,10 @@ const Options: React.FC = () => {
                                    // Simple conflict check
                                    const reserved = ['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+S', 'Ctrl+P'];
                                    if (reserved.includes(finalShortcut)) {
-                                       alert(`Shortcut "${finalShortcut}" is likely a system reserved key. Please choose another.`);
+                                       alert(`快捷键“${finalShortcut}”可能是系统保留键，请换一个。`);
                                        // Reset to old
                                        input.value = settings.shortcuts?.translate || 'Alt+A';
-                                   } else if (finalShortcut && finalShortcut !== 'Press keys...') {
+                                   } else if (finalShortcut && finalShortcut !== '请按下按键...') {
                                        updateSettings({ 
                                            shortcuts: { ...settings.shortcuts, translate: finalShortcut } 
                                        });
@@ -238,29 +244,29 @@ const Options: React.FC = () => {
                                shortcuts: { ...settings.shortcuts, translate: 'Alt+A' } 
                            })}
                          >
-                           Reset
+                           重置
                          </Button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        Click the input box and press your desired key combination. Default is Alt+A.
+                        点击输入框并按下所需组合键。默认是 Alt+A。
                       </p>
                    </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Configuration Management</h2>
+                <h2 className="text-xl font-bold mb-4">配置管理</h2>
                 <p className="text-gray-500 mb-6">
-                  Export your settings to a file or import them from a backup.
+                  导出设置到文件或从备份导入。
                 </p>
                 <div className="flex gap-4">
                   <Button onClick={handleExport} className="flex items-center gap-2">
                     <Download className="w-4 h-4" />
-                    Export Settings
+                    导出设置
                   </Button>
                   <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="flex items-center gap-2">
                     <Upload className="w-4 h-4" />
-                    Import Settings
+                    导入设置
                   </Button>
                   <input
                     type="file"
@@ -275,10 +281,10 @@ const Options: React.FC = () => {
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                    <Terminal className="w-5 h-5 text-gray-700" />
-                   Developer Settings
+                   开发者设置
                  </h2>
                  <p className="text-gray-500 mb-6">
-                   Advanced options for debugging and development.
+                   用于调试和开发的高级选项。
                  </p>
                  
                  <div className="space-y-4">
@@ -291,7 +297,7 @@ const Options: React.FC = () => {
                           developer: { ...settings.developer, enabled: e.target.checked } 
                         })}
                       />
-                      Enable Developer Mode
+                      启用开发者模式
                    </label>
 
                    {(settings.developer?.enabled) && (
@@ -305,7 +311,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logDom: e.target.checked } 
                             })}
                           />
-                          Log DOM Operations
+                          记录 DOM 操作
                        </label>
                        <label className="flex items-center gap-3 text-sm text-gray-600">
                           <input
@@ -316,7 +322,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logTranslation: e.target.checked } 
                             })}
                           />
-                          Log Translation Content
+                          记录翻译内容
                        </label>
                        <label className="flex items-center gap-3 text-sm text-gray-600">
                           <input
@@ -327,7 +333,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logNetwork: e.target.checked } 
                             })}
                           />
-                          Log Network Requests
+                          记录网络请求
                        </label>
                      </div>
                    )}
@@ -337,17 +343,17 @@ const Options: React.FC = () => {
               <div className="bg-white rounded-xl p-8 shadow-sm border border-red-200 bg-red-50/30">
                 <h2 className="text-xl font-bold mb-4 text-red-600 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5" />
-                  Danger Zone
+                  危险区域
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  Actions here can cause data loss and cannot be undone.
+                  此处的操作会导致数据丢失且无法撤销。
                 </p>
                 <Button 
                   onClick={handleResetSettings} 
                   variant="outline" 
                   className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
                 >
-                  Clear All Settings
+                  清除所有设置
                 </Button>
               </div>
             </div>
@@ -357,8 +363,8 @@ const Options: React.FC = () => {
           {activeTab === 'auto_translate' && <AutoTranslateConfig />}
            {activeTab === 'prompts' && (
              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-              <h2 className="text-2xl font-bold mb-4">Prompt Configuration</h2>
-              <p className="text-gray-500">Advanced prompt settings are currently managed within Model Configuration.</p>
+              <h2 className="text-2xl font-bold mb-4">提示词配置</h2>
+              <p className="text-gray-500">高级提示词设置目前在模型配置中管理。</p>
             </div>
           )}
           {activeTab === 'about' && <About />}

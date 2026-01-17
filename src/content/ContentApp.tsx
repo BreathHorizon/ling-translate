@@ -583,7 +583,7 @@ const ContentApp: React.FC = () => {
          if (item.runId !== translationRunIdRef.current) return;
          item.element.setAttribute('data-translated', 'true');
          item.element.setAttribute('data-translated-lang', targetLanguage);
-         item.element.setAttribute('title', 'Translated');
+         item.element.setAttribute('title', '已翻译');
       } else if (anyError) {
          throw new Error('Some parts failed to translate');
       }
@@ -595,7 +595,7 @@ const ContentApp: React.FC = () => {
       if (errorMessage.includes('Extension context invalidated') || errorMessage.includes('context invalidated')) {
         if (!window['__ling_translate_context_alert_shown']) {
             window['__ling_translate_context_alert_shown'] = true;
-            alert('Extension updated or reloaded. Please refresh the page to continue using Ling Translate.');
+            alert('扩展已更新或重新加载。请刷新页面以继续使用 Ling 翻译。');
         }
         // Stop retrying
         item.status = 'error';
@@ -669,7 +669,7 @@ const ContentApp: React.FC = () => {
       item.element.removeAttribute('data-translated');
       item.element.removeAttribute('data-translated-lang');
       const currentTitle = item.element.getAttribute('title');
-      if (currentTitle === 'Translated') {
+      if (currentTitle === '已翻译') {
         if (item.originalTitle === null) {
           item.element.removeAttribute('title');
         } else {
@@ -703,7 +703,7 @@ const ContentApp: React.FC = () => {
     const currentSettings = useStore.getState().settings;
 
     if (!currentSettings.defaultModelId) {
-      if (confirm('No translation model selected. Configure now?')) {
+      if (confirm('尚未选择翻译模型，是否立即配置？')) {
         chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
       }
       return;
@@ -836,16 +836,16 @@ const ContentApp: React.FC = () => {
   }, [handleTranslate, settings.autoTranslateDomains]);
 
   const supportedLanguages = [
-    { code: 'zh-CN', name: 'Chinese (Simplified)' },
-    { code: 'en', name: 'English' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'it', name: 'Italian' },
+    { code: 'zh-CN', name: '中文（简体）' },
+    { code: 'en', name: '英语' },
+    { code: 'ja', name: '日语' },
+    { code: 'ko', name: '韩语' },
+    { code: 'fr', name: '法语' },
+    { code: 'de', name: '德语' },
+    { code: 'es', name: '西班牙语' },
+    { code: 'ru', name: '俄语' },
+    { code: 'pt', name: '葡萄牙语' },
+    { code: 'it', name: '意大利语' },
   ];
 
   // Flatten models for selection
@@ -1176,7 +1176,7 @@ const ContentApp: React.FC = () => {
             style={getThemeStyle('settingsPanel')}
         >
            <div className="flex justify-between items-center mb-4">
-             <h3 className={cn("font-bold bg-transparent", panelTextClass)}>Quick Settings</h3>
+             <h3 className={cn("font-bold bg-transparent", panelTextClass)}>快捷设置</h3>
              <button
                onClick={() => setShowMenu(false)}
                className={cn(
@@ -1201,11 +1201,11 @@ const ContentApp: React.FC = () => {
                   checked={isAutoTranslate}
                   onChange={toggleAutoTranslate}
                 />
-                Auto-translate this site
+                自动翻译此网站
               </label>
 
               <div>
-                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>Target Language</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>目标语言</label>
                  <select 
                    className={panelSelectClass}
                    value={settings.defaultToLang}
@@ -1218,13 +1218,13 @@ const ContentApp: React.FC = () => {
               </div>
 
               <div>
-                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>Model</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>模型</label>
                  <select 
                    className={panelSelectClass}
                    value={settings.defaultModelId}
                    onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
                  >
-                   <option value="">Select a model...</option>
+                   <option value="">选择模型...</option>
                    {availableModels.map(model => (
                      <option key={model.id} value={model.id}>{model.name}</option>
                    ))}
@@ -1239,7 +1239,7 @@ const ContentApp: React.FC = () => {
                 onClick={() => setIsHidden(true)}
               >
                 <EyeOff className="w-4 h-4" />
-                Temporarily Hide
+                暂时隐藏
               </button>
               
               <button
@@ -1256,7 +1256,7 @@ const ContentApp: React.FC = () => {
                 }}
               >
                 <EyeOff className="w-4 h-4" />
-                Hide on this site
+                在此网站隐藏
               </button>
 
               <button
@@ -1267,20 +1267,20 @@ const ContentApp: React.FC = () => {
                 onClick={() => updateSettings({ hideGlobalButton: true })}
               >
                 <EyeOff className="w-4 h-4" />
-                Permanently Hide
+                永久隐藏
               </button>
 
               <button 
                 className="w-full py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors font-medium" 
                 onClick={() => chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' })}
               >
-                 More Settings
+                 更多设置
               </button>
               
               <div className="pt-4 border-t border-gray-100/20 dark:border-gray-700/20">
                 <div className="flex items-center justify-between mb-2">
                    <h4 className={cn("text-xs font-semibold flex items-center gap-1", panelMutedTextClass)}>
-                     <Terminal className="w-3 h-3" /> Developer Mode
+                     <Terminal className="w-3 h-3" /> 开发者模式
                    </h4>
                    <label className="relative inline-flex items-center cursor-pointer">
                      <input 
@@ -1306,7 +1306,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logDom: e.target.checked } 
                         })}
                       />
-                      Log DOM Operations
+                      记录 DOM 操作
                     </label>
                     <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
@@ -1317,7 +1317,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logTranslation: e.target.checked } 
                         })}
                       />
-                      Log Translation Content
+                      记录翻译内容
                     </label>
                     <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
@@ -1328,7 +1328,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logNetwork: e.target.checked } 
                         })}
                       />
-                      Log Network Requests
+                      记录网络请求
                     </label>
                   </div>
                 )}
@@ -1346,7 +1346,7 @@ const ContentApp: React.FC = () => {
             onClick={() => setShowMenu(!showMenu)}
             className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20"
             style={getThemeStyle('settingsButton')}
-            title="Settings"
+            title="设置"
          >
            <Settings className={cn("w-4 h-4", settingsIconClass)} />
          </button>

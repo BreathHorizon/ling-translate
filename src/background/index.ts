@@ -2,17 +2,20 @@ import { TranslationRequest, TranslationResponse, ApiConfig, ModelConfig, Extens
 import { getSettings, getCache, setCache } from '@/lib/storage';
 import { sha256 } from '@/lib/utils';
 
-console.log('Background script loaded');
+console.log('后台脚本已加载');
 
 const LANG_CODE_TO_NAME: Record<string, string> = {
-  'zh-CN': 'Chinese (Simplified)',
-  'en': 'English',
-  'ja': 'Japanese',
-  'ko': 'Korean',
-  'fr': 'French',
-  'de': 'German',
-  'es': 'Spanish',
-  'auto': 'auto-detect',
+  'zh-CN': '中文（简体）',
+  'en': '英语',
+  'ja': '日语',
+  'ko': '韩语',
+  'fr': '法语',
+  'de': '德语',
+  'es': '西班牙语',
+  'ru': '俄语',
+  'pt': '葡萄牙语',
+  'it': '意大利语',
+  'auto': '自动检测',
 };
 
 const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSecond: number) => {
@@ -98,7 +101,7 @@ const getModelLimiter = (modelKey: string, concurrencyLimit: number, requestsPer
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
-  return 'Unknown error';
+  return '未知错误';
 };
 
 const normalizeTemperature = (temperature: unknown): number => {
@@ -117,7 +120,7 @@ const stripThoughtBlocks = (text: string): string => {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Chrome Translator Extension installed');
+  console.log('Ling 翻译扩展已安装');
 });
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
@@ -144,11 +147,11 @@ async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ suc
     const apiConfig = settings.apiConfigs.find(api => api.id === apiId);
     
     if (!apiConfig) {
-      return { success: false, error: 'API Configuration not found' };
+      return { success: false, error: '未找到 API 配置' };
     }
 
     const testText = `If you're not careful and no-clip out of reality in wrong areas, you'll end up in the Backrooms, where it's nothing but the stink of moist carpet, the madness of mono-yellow, and endless background noise of fluorescent lights at maximum hum-buzz, and approximately six hundred million square miles of randomly segmented empty rooms to be trapped in. God save you if you hear something wandering around nearby, because it sure as hell has heard you…`;
-    const targetLang = 'Chinese';
+    const targetLang = '中文';
 
     const systemPrompt = modelConfig.systemPrompt.replace('{{to}}', targetLang);
     const userPrompt = modelConfig.prompt.replace('{{to}}', targetLang).replace('{{text}}', testText);
@@ -218,7 +221,7 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
   const settings = await getSettings();
   
   if (!payload.modelId) {
-     return { success: false, error: 'No model selected' };
+     return { success: false, error: '未选择模型' };
   }
 
   const cacheKeyBase = `${payload.text}-${payload.to}-${payload.modelId}-${payload.contentType}`;
@@ -238,10 +241,10 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
   const [apiId, modelId] = payload.modelId.split(':');
 
   const apiConfig = settings.apiConfigs.find(api => api.id === apiId);
-  if (!apiConfig) return { success: false, error: 'API Configuration not found' };
+  if (!apiConfig) return { success: false, error: '未找到 API 配置' };
 
   const modelConfig = apiConfig.models.find(model => model.id === modelId);
-  if (!modelConfig) return { success: false, error: 'Model Configuration not found' };
+  if (!modelConfig) return { success: false, error: '未找到模型配置' };
 
   try {
     const limiter = getModelLimiter(
@@ -309,7 +312,7 @@ async function callOpenAI(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `API Error: ${response.statusText}`);
+    throw new Error(errorData.error?.message || `API 错误: ${response.statusText}`);
   }
 
   const data = await response.json();
