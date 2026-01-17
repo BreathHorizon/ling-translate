@@ -3,11 +3,6 @@ import { UserSettings, DEFAULT_SETTINGS } from './types';
 export const getSettings = async (): Promise<UserSettings> => {
   try {
     const result = await chrome.storage.local.get('settings');
-    // Migrate from sync if local is empty? 
-    // For now, let's just assume local. If we wanted to be robust we could check sync first.
-    // But given the instruction to switch, I'll stick to local.
-    // However, existing users might lose settings. 
-    // Ideally: Check local, if empty check sync, if sync exists, save to local and return.
     if (!result.settings) {
        const syncResult = await chrome.storage.sync.get('settings');
        if (syncResult.settings) {

@@ -31,6 +31,9 @@ export interface DeveloperSettings {
 }
 
 export interface ThemeSettings {
+  mode: 'frosted' | 'wallpaper';
+  frostedTone: 'light' | 'dark';
+  frostedOpacity: number;
   floatingWallpaper?: string;
   settingsWallpaper?: string;
   maskType: 'light' | 'dark' | 'auto';
@@ -93,6 +96,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   sitePreferences: {},
   autoTranslateDomains: [],
   theme: {
+    mode: 'frosted',
+    frostedTone: 'dark',
+    frostedOpacity: 0.72,
     maskType: 'auto',
     maskOpacity: 0.8
   },

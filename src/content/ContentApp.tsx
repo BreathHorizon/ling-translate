@@ -614,43 +614,36 @@ const ContentApp: React.FC = () => {
     }
   };
 
-  // Theme Helper
   const getThemeStyle = (type: 'floating' | 'settings') => {
     const { theme } = settings;
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const resolveIsDark = () => {
-      if (!theme) return systemPrefersDark;
-      if (theme.maskType === 'dark') return true;
-      if (theme.maskType === 'light') return false;
-      return systemPrefersDark;
-    };
 
-    const isDark = resolveIsDark();
-    const frostedBackgroundColor = isDark ? 'rgba(17, 24, 39, 0.72)' : 'rgba(255, 255, 255, 0.82)';
-    const frostedBorderColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.22)';
+    const mode = theme?.mode ?? ((theme?.floatingWallpaper || theme?.settingsWallpaper) ? 'wallpaper' : 'frosted');
+    const frostedTone = theme?.frostedTone ?? (systemPrefersDark ? 'dark' : 'light');
+    const frostedOpacity = Math.min(1, Math.max(0, theme?.frostedOpacity ?? (frostedTone === 'dark' ? 0.72 : 0.82)));
 
-    if (!theme) {
-      return {
-        backgroundColor: frostedBackgroundColor,
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        border: `1px solid ${frostedBorderColor}`,
-      };
-    }
+    const frostedBackgroundColor =
+      frostedTone === 'dark'
+        ? `rgba(17, 24, 39, ${frostedOpacity})`
+        : `rgba(255, 255, 255, ${frostedOpacity})`;
+    const frostedBorderColor = frostedTone === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.22)';
 
-    const wallpaper = type === 'floating' ? theme.floatingWallpaper : theme.settingsWallpaper;
-    if (!wallpaper) {
-      return {
-        backgroundColor: frostedBackgroundColor,
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        border: `1px solid ${frostedBorderColor}`,
-      };
-    }
+    const frostedStyle = {
+      backgroundColor: frostedBackgroundColor,
+      backdropFilter: 'blur(12px) saturate(140%)',
+      WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+      border: `1px solid ${frostedBorderColor}`,
+    } as const;
 
-    const maskColor = isDark ? '30, 58, 138' : '255, 255, 255';
-    const opacity = Math.min(1, Math.max(0, theme.maskOpacity ?? 0.9));
+    if (mode === 'frosted') return frostedStyle;
 
+    const wallpaper = type === 'floating' ? theme?.floatingWallpaper : theme?.settingsWallpaper;
+    if (!wallpaper) return frostedStyle;
+
+    const maskType = theme?.maskType ?? 'auto';
+    const maskIsDark = maskType === 'dark' || (maskType === 'auto' && systemPrefersDark);
+    const maskColor = maskIsDark ? '30, 58, 138' : '255, 255, 255';
+    const opacity = Math.min(1, Math.max(0, theme?.maskOpacity ?? 0.9));
     const background = `linear-gradient(rgba(${maskColor}, ${opacity}), rgba(${maskColor}, ${opacity})), url(${wallpaper})`;
 
     return {
@@ -661,6 +654,15 @@ const ContentApp: React.FC = () => {
       WebkitBackdropFilter: 'blur(8px)',
     };
   };
+
+  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const themeMode = settings.theme?.mode ?? ((settings.theme?.floatingWallpaper || settings.theme?.settingsWallpaper) ? 'wallpaper' : 'frosted');
+  const frostedTone = settings.theme?.frostedTone ?? (systemPrefersDark ? 'dark' : 'light');
+  const floatingUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.floatingWallpaper;
+  const settingsUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.settingsWallpaper;
+  const frostedIconColor = frostedTone === 'light' ? 'text-gray-900' : 'text-white';
+  const floatingIconClass = floatingUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
+  const settingsIconClass = settingsUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
 
   const isAutoTranslate = settings.autoTranslateDomains?.includes(window.location.hostname);
 
@@ -812,11 +814,11 @@ const ContentApp: React.FC = () => {
       )}>
          <button
             onClick={() => setShowMenu(!showMenu)}
-            className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20 text-gray-700 dark:text-gray-200"
-            style={getThemeStyle('settings')} // Use settings theme for settings button too? Or just default? Let's use settings theme for consistency or floating theme? User said "custom floating window background... custom settings panel wallpaper". The buttons are part of floating window.
+            className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20"
+            style={getThemeStyle('settings')}
             title="Settings"
          >
-           <Settings className="w-4 h-4" />
+           <Settings className={cn("w-4 h-4", settingsIconClass)} />
          </button>
       </div>
 
@@ -825,17 +827,15 @@ const ContentApp: React.FC = () => {
         onClick={handleTranslate}
         disabled={isTranslating}
         className={cn(
-          "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 relative",
-          !settings.theme?.floatingWallpaper && "bg-primary text-white hover:bg-primary-dark", // Fallback colors if no wallpaper
-          !settings.theme?.floatingWallpaper && "dark:bg-primary-dark dark:text-gray-100",
+          "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 relative active:scale-95",
           isTranslating && "cursor-wait opacity-80"
         )}
         style={getThemeStyle('floating')}
       >
         {isTranslating ? (
-          <Loader2 className={cn("w-5 h-5 animate-spin", settings.theme?.floatingWallpaper && "text-white mix-blend-difference")} />
+          <Loader2 className={cn("w-5 h-5 animate-spin", floatingIconClass)} />
         ) : (
-          <Languages className={cn("w-5 h-5", settings.theme?.floatingWallpaper && "text-white mix-blend-difference")} />
+          <Languages className={cn("w-5 h-5", floatingIconClass)} />
         )}
       </button>
     </div>
