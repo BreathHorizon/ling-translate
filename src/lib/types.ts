@@ -64,7 +64,7 @@ export interface TranslationRequest {
     text: string;
     from: string;
     to: string;
-    contentType: 'html' | 'text';
+    contentType: 'html' | 'text' | 'multi';
     modelId: string; // Format: "apiId:modelId"
   };
 }
