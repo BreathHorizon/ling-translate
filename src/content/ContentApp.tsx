@@ -6,6 +6,8 @@ import { useStore } from '@/store/useStore';
 import { logger } from '@/lib/logger';
 
 const MAX_RETRIES = 3;
+const MULTI_SEPARATOR = '\n\n%%\n\n';
+const MULTI_SEPARATOR_REGEX = /\n\s*%%\s*\n/;
 
 interface TranslationItem {
   id: string;
@@ -20,6 +22,8 @@ interface TranslationItem {
   retryCount: number;
   isVisible: boolean;
 }
+
+type TranslationPart = TranslationItem['parts'][number];
 
 // CSS-based loading indicator to avoid modifying DOM textContent
 let stylesInjected = false;
@@ -171,6 +175,26 @@ const createRequestLimiter = (initialConcurrency: number, initialRequestsPerSeco
   return enqueue;
 };
 
+const chunkParts = <T,>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
+const normalizeTranslationText = (original: string, translated: string): string => {
+  const leading = original.match(/^\s+/)?.[0] ?? '';
+  const trailing = original.match(/\s+$/)?.[0] ?? '';
+  return `${leading}${translated.trim()}${trailing}`;
+};
+
+const splitMultiTranslation = (text: string): string[] => {
+  const normalized = text.trim();
+  if (!normalized) return [];
+  return normalized.split(MULTI_SEPARATOR_REGEX).map(segment => segment.trim());
+};
+
 const ContentApp: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -269,8 +293,6 @@ const ContentApp: React.FC = () => {
         logger.dom('Applied loading indicator for item:', item.id);
     }
 
-    const loadingStart = Date.now();
-
     try {
       // Process all parts that need translation
       const pendingParts = item.parts.filter(p => p.status === 'pending' || p.status === 'error');
@@ -283,65 +305,134 @@ const ContentApp: React.FC = () => {
       const targetLanguage = currentSettings.defaultToLang;
       const sourceLanguage = currentSettings.defaultFromLang;
 
-      // Process parts concurrently with rate limiting
-      await Promise.all(pendingParts.map(async (part) => {
+      const [apiId, modelId] = currentSettings.defaultModelId.split(':');
+      const modelConfig = currentSettings.apiConfigs
+        .find(api => api.id === apiId)
+        ?.models.find(model => model.id === modelId);
+      const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 1);
+
+      const applyTranslatedPart = (part: TranslationPart, translatedText: string) => {
+        const normalized = normalizeTranslationText(part.originalText, translatedText);
+        part.translatedText = normalized;
+        part.status = 'success';
+        if (part.node.parentElement) {
+          part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
+        }
+        logger.dom('Updating text node:', part.node);
+        if (part.node.textContent !== normalized) {
+          part.node.textContent = normalized;
+        }
+      };
+
+      const markPartError = (part: TranslationPart, error?: unknown) => {
+        part.status = 'error';
+        if (part.node.parentElement) {
+          part.node.parentElement.classList.remove('ling-translate-loading');
+          part.node.parentElement.classList.add('ling-translate-error');
+        }
+        if (error) {
+          logger.translation('Part failed:', error);
+        }
+      };
+
+      const translateSinglePart = async (part: TranslationPart) => {
         part.status = 'translating';
         const originalText = part.originalText;
-        
         logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
 
         const request: TranslationRequest = {
-            type: 'TRANSLATE_TEXT',
-            payload: {
-              text: originalText,
-              from: sourceLanguage,
-              to: targetLanguage,
-              contentType: 'text',
-              modelId: currentSettings.defaultModelId
-            }
+          type: 'TRANSLATE_TEXT',
+          payload: {
+            text: originalText,
+            from: sourceLanguage,
+            to: targetLanguage,
+            contentType: 'text',
+            modelId: currentSettings.defaultModelId
+          }
         };
 
         try {
-            await limiter(async () => {
-                const networkStart = Date.now();
-                const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
-                const networkDuration = Date.now() - networkStart;
-                
-                logger.network(`Part request took ${networkDuration}ms`, response.success ? 'Success' : 'Failed');
+          const response = await limiter(async () => {
+            const networkStart = Date.now();
+            const result = await chrome.runtime.sendMessage(request) as TranslationResponse;
+            const networkDuration = Date.now() - networkStart;
+            logger.network(`Part request took ${networkDuration}ms`, result.success ? 'Success' : 'Failed');
+            return result;
+          });
 
-                if (response.success && response.data) {
-                   part.translatedText = response.data.translatedText;
-                   part.status = 'success';
-
-                   // Remove loading indicator
-                   if (part.node.parentElement) {
-                       part.node.parentElement.classList.remove('ling-translate-loading');
-                   }
-
-                   // Update DOM with translated text
-                   logger.dom('Updating text node:', part.node);
-                   if (part.node.textContent !== response.data.translatedText) {
-                       part.node.textContent = response.data.translatedText;
-                   }
-                } else {
-                   part.status = 'error';
-                   // Remove loading and add error styling
-                   if (part.node.parentElement) {
-                       part.node.parentElement.classList.remove('ling-translate-loading');
-                       part.node.parentElement.classList.add('ling-translate-error');
-                   }
-                   logger.translation('Part failed:', response.error);
-                }
-            });
+          if (response.success && response.data) {
+            if (!response.data.translatedText || !response.data.translatedText.trim()) {
+              throw new Error('Empty translation result');
+            }
+            applyTranslatedPart(part, response.data.translatedText);
+          } else {
+            markPartError(part, response.error);
+            throw new Error(response.error || 'Translation failed');
+          }
         } catch (err) {
-            part.status = 'error';
-            console.error(err);
-             if (part.node.parentElement) {
-                 part.node.parentElement.classList.remove('ling-translate-loading');
-                 part.node.parentElement.classList.add('ling-translate-error');
-             }
+          console.error(err);
+          markPartError(part, err);
+          throw err;
         }
-      }));
+      };
+
+      const translateBatch = async (batch: TranslationPart[]) => {
+        if (batch.length === 1) {
+          await translateSinglePart(batch[0]);
+          return;
+        }
+
+        batch.forEach(part => {
+          part.status = 'translating';
+        });
+
+        const combinedText = batch.map(part => part.originalText).join(MULTI_SEPARATOR);
+        logger.translation(`Translating batch (${sourceLanguage} -> ${targetLanguage}):`, combinedText.substring(0, 30) + '...');
+
+        const request: TranslationRequest = {
+          type: 'TRANSLATE_TEXT',
+          payload: {
+            text: combinedText,
+            from: sourceLanguage,
+            to: targetLanguage,
+            contentType: 'multi',
+            modelId: currentSettings.defaultModelId
+          }
+        };
+
+        const response = await limiter(async () => {
+          const networkStart = Date.now();
+          const result = await chrome.runtime.sendMessage(request) as TranslationResponse;
+          const networkDuration = Date.now() - networkStart;
+          logger.network(`Batch request took ${networkDuration}ms`, result.success ? 'Success' : 'Failed');
+          return result;
+        });
+
+        if (!response.success || !response.data) {
+          batch.forEach(part => markPartError(part, response.error));
+          throw new Error(response.error || 'Translation failed');
+        }
+
+        if (!response.data.translatedText || !response.data.translatedText.trim()) {
+          batch.forEach(part => markPartError(part, 'Empty translation result'));
+          throw new Error('Empty translation result');
+        }
+
+        const segments = splitMultiTranslation(response.data.translatedText);
+        const hasEmptySegment = segments.some(segment => !segment);
+        if (segments.length !== batch.length || hasEmptySegment) {
+          logger.translation('Batch segment mismatch', { expected: batch.length, actual: segments.length });
+          await Promise.all(batch.map(part => translateSinglePart(part)));
+          return;
+        }
+
+        segments.forEach((segment, index) => {
+          applyTranslatedPart(batch[index], segment);
+        });
+      };
+
+      const batches = chunkParts(pendingParts, maxParagraphs);
+      await Promise.all(batches.map(batch => translateBatch(batch)));
       
       // Check if all parts success
       const allSuccess = item.parts.every(p => p.status === 'success');

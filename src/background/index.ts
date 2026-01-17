@@ -206,7 +206,7 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
      return { success: false, error: 'No model selected' };
   }
 
-  const cacheKeyBase = `${payload.text}-${payload.to}-${payload.modelId}`;
+  const cacheKeyBase = `${payload.text}-${payload.to}-${payload.modelId}-${payload.contentType}`;
   const cacheKey = await sha256(cacheKeyBase);
   const cachedTranslation = await getCache(cacheKey);
 
@@ -234,7 +234,9 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
       modelConfig.concurrency ?? 4,
       modelConfig.requestsPerSecond ?? modelConfig.concurrency ?? 12
     );
-    const translatedText = await limiter.enqueue(() => callOpenAI(payload.text, payload.to, apiConfig, modelConfig));
+    const translatedText = await limiter.enqueue(() =>
+      callOpenAI(payload.text, payload.to, apiConfig, modelConfig, payload.contentType)
+    );
     
     await setCache(cacheKey, translatedText, payload.text);
 
@@ -250,10 +252,33 @@ async function handleTranslation(payload: TranslationRequest['payload']): Promis
   }
 }
 
-async function callOpenAI(text: string, targetLang: string, api: ApiConfig, model: ModelConfig): Promise<string> {
+async function callOpenAI(
+  text: string,
+  targetLang: string,
+  api: ApiConfig,
+  model: ModelConfig,
+  contentType: TranslationRequest['payload']['contentType']
+): Promise<string> {
   const langName = LANG_CODE_TO_NAME[targetLang] || targetLang;
-  const systemPrompt = model.systemPrompt.replace('{{to}}', langName);
-  const userPrompt = model.prompt.replace('{{to}}', langName).replace('{{text}}', text);
+  const useMultiple = contentType === 'multi' && model.systemMultiplePrompt && model.multiplePrompt;
+  const systemPrompt = (useMultiple ? model.systemMultiplePrompt : model.systemPrompt)
+    .replace('{{to}}', langName);
+  const userPrompt = (useMultiple ? model.multiplePrompt : model.prompt)
+    .replace('{{to}}', langName)
+    .replace('{{text}}', text);
+
+  const requestBody: Record<string, unknown> = {
+    model: model.name,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3
+  };
+
+  if (Number.isFinite(model.maxTokens) && model.maxTokens > 0) {
+    requestBody.max_tokens = model.maxTokens;
+  }
 
   const response = await fetch(`${api.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -261,14 +286,7 @@ async function callOpenAI(text: string, targetLang: string, api: ApiConfig, mode
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${api.apiKey}`
     },
-    body: JSON.stringify({
-      model: model.name, 
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
