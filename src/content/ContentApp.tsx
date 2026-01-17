@@ -617,23 +617,48 @@ const ContentApp: React.FC = () => {
   // Theme Helper
   const getThemeStyle = (type: 'floating' | 'settings') => {
     const { theme } = settings;
-    if (!theme) return {};
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const resolveIsDark = () => {
+      if (!theme) return systemPrefersDark;
+      if (theme.maskType === 'dark') return true;
+      if (theme.maskType === 'light') return false;
+      return systemPrefersDark;
+    };
+
+    const isDark = resolveIsDark();
+    const frostedBackgroundColor = isDark ? 'rgba(17, 24, 39, 0.72)' : 'rgba(255, 255, 255, 0.82)';
+    const frostedBorderColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.22)';
+
+    if (!theme) {
+      return {
+        backgroundColor: frostedBackgroundColor,
+        backdropFilter: 'blur(12px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+        border: `1px solid ${frostedBorderColor}`,
+      };
+    }
 
     const wallpaper = type === 'floating' ? theme.floatingWallpaper : theme.settingsWallpaper;
-    const isDark = theme.maskType === 'dark' || (theme.maskType === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    const maskColor = isDark ? '30, 58, 138' : '255, 255, 255'; // Dark Blue vs White
-    const opacity = theme.maskOpacity ?? 0.9;
+    if (!wallpaper) {
+      return {
+        backgroundColor: frostedBackgroundColor,
+        backdropFilter: 'blur(12px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+        border: `1px solid ${frostedBorderColor}`,
+      };
+    }
 
-    const background = wallpaper 
-      ? `linear-gradient(rgba(${maskColor}, ${opacity}), rgba(${maskColor}, ${opacity})), url(${wallpaper})`
-      : `rgba(${maskColor}, ${opacity})`;
+    const maskColor = isDark ? '30, 58, 138' : '255, 255, 255';
+    const opacity = Math.min(1, Math.max(0, theme.maskOpacity ?? 0.9));
+
+    const background = `linear-gradient(rgba(${maskColor}, ${opacity}), rgba(${maskColor}, ${opacity})), url(${wallpaper})`;
 
     return {
-      backgroundImage: wallpaper ? background : undefined,
-      backgroundColor: !wallpaper ? `rgba(${maskColor}, ${opacity})` : undefined,
+      backgroundImage: background,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
-      backdropFilter: 'blur(8px)'
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
     };
   };
 
