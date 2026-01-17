@@ -24,9 +24,15 @@ jobs:
         run: |
           echo "${{ secrets.PEM_FILE }}" > ./key.pem
 
-      - name: Get version from tag
+      - name: Get version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v1
@@ -41,12 +47,13 @@ jobs:
       
       - name: Pack Extension
         run: |
-            google-chrome --pack-extension=./dist --pack-extension-key=./key.pem
+          google-chrome --pack-extension=./dist --pack-extension-key=./key.pem
 
-      - name: Rename dist
+      - name: Rename artifacts
         run: |
-          mv release/release.zip ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
+          mv ./release/release.zip ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
           mv dist.crx ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -55,7 +62,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          body_path: changelog/v${{ steps.get_version.outputs.VERSION }}.md
+          # body_path: changelog/v${{ steps.get_version.outputs.VERSION }}.md
           files: |
             ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
             ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
