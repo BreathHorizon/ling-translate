@@ -62,7 +62,7 @@ const injectStyles = () => {
   document.head.appendChild(style);
 };
 
-const getAllTranslatableGroups = () => {
+const getAllTranslatableGroups = async () => {
   const walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_TEXT,
@@ -91,6 +91,8 @@ const getAllTranslatableGroups = () => {
   );
 
   const groups = new Map<HTMLElement, Text[]>();
+  let lastYieldTime = Date.now();
+  
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const parent = node.parentElement;
@@ -101,6 +103,12 @@ const getAllTranslatableGroups = () => {
       } else {
         groups.set(parent, [node]);
       }
+    }
+
+    // Yield to main thread every 20ms to prevent UI freezing
+    if (Date.now() - lastYieldTime > 20) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      lastYieldTime = Date.now();
     }
   }
   return groups;
@@ -220,89 +228,87 @@ const ContentApp: React.FC = () => {
         return;
       }
 
-      await limiter(async () => {
-        const targetLanguage = currentSettings.defaultToLang;
-        const sourceLanguage = currentSettings.defaultFromLang;
+      const targetLanguage = currentSettings.defaultToLang;
+      const sourceLanguage = currentSettings.defaultFromLang;
+
+      // Process parts concurrently with rate limiting
+      await Promise.all(pendingParts.map(async (part) => {
+        part.status = 'translating';
+        const originalText = part.originalText;
         
-        // Translate each part individually to preserve DOM placement
-        // Use Promise.all to run them concurrently (up to limiter's capacity if we wrapped inside)
-        // But here we are INSIDE the limiter. So we shouldn't block for too long.
-        // Actually, we should probably schedule each part as a separate task in the limiter?
-        // But `processTranslation` is called once per item.
-        
-        // Let's iterate and translate.
-        for (const part of pendingParts) {
-             part.status = 'translating';
-             const originalText = part.originalText;
-             
-             logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
+        logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
 
-             const request: TranslationRequest = {
-                 type: 'TRANSLATE_TEXT',
-                 payload: {
-                   text: originalText,
-                   from: sourceLanguage,
-                   to: targetLanguage,
-                   contentType: 'text',
-                   modelId: currentSettings.defaultModelId
-                 }
-             };
+        const request: TranslationRequest = {
+            type: 'TRANSLATE_TEXT',
+            payload: {
+              text: originalText,
+              from: sourceLanguage,
+              to: targetLanguage,
+              contentType: 'text',
+              modelId: currentSettings.defaultModelId
+            }
+        };
 
-             try {
-                 const networkStart = Date.now();
-                 const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
-                 const networkDuration = Date.now() - networkStart;
-                 
-                 logger.network(`Part request took ${networkDuration}ms`, response.success ? 'Success' : 'Failed');
-    
-                 if (response.success && response.data) {
-                    part.translatedText = response.data.translatedText;
-                    part.status = 'success';
+        try {
+            await limiter(async () => {
+                const networkStart = Date.now();
+                const response = await chrome.runtime.sendMessage(request) as TranslationResponse;
+                const networkDuration = Date.now() - networkStart;
+                
+                logger.network(`Part request took ${networkDuration}ms`, response.success ? 'Success' : 'Failed');
 
-                    // Remove loading indicator
-                    if (part.node.parentElement) {
-                        part.node.parentElement.classList.remove('ling-translate-loading');
-                    }
+                if (response.success && response.data) {
+                   part.translatedText = response.data.translatedText;
+                   part.status = 'success';
 
-                    // Update DOM with translated text
-                    logger.dom('Updating text node:', part.node);
-                    if (part.node.textContent !== response.data.translatedText) {
-                        part.node.textContent = response.data.translatedText;
-                    }
-                 } else {
-                    part.status = 'error';
-                    // Remove loading and add error styling
-                    if (part.node.parentElement) {
-                        part.node.parentElement.classList.remove('ling-translate-loading');
-                        part.node.parentElement.classList.add('ling-translate-error');
-                    }
-                    logger.translation('Part failed:', response.error);
-                 }
-             } catch (err) {
-                 part.status = 'error';
-                 console.error(err);
+                   // Remove loading indicator
+                   if (part.node.parentElement) {
+                       part.node.parentElement.classList.remove('ling-translate-loading');
+                   }
+
+                   // Update DOM with translated text
+                   logger.dom('Updating text node:', part.node);
+                   if (part.node.textContent !== response.data.translatedText) {
+                       part.node.textContent = response.data.translatedText;
+                   }
+                } else {
+                   part.status = 'error';
+                   // Remove loading and add error styling
+                   if (part.node.parentElement) {
+                       part.node.parentElement.classList.remove('ling-translate-loading');
+                       part.node.parentElement.classList.add('ling-translate-error');
+                   }
+                   logger.translation('Part failed:', response.error);
+                }
+            });
+        } catch (err) {
+            part.status = 'error';
+            console.error(err);
+             if (part.node.parentElement) {
+                 part.node.parentElement.classList.remove('ling-translate-loading');
+                 part.node.parentElement.classList.add('ling-translate-error');
              }
         }
-        
-        // Check if all parts success
-        const allSuccess = item.parts.every(p => p.status === 'success');
-        const anyError = item.parts.some(p => p.status === 'error');
-        
-        if (allSuccess) {
-           item.status = 'success';
-           // Clean up all loading indicators
-           item.parts.forEach(part => {
-               if (part.node.parentElement) {
-                   part.node.parentElement.classList.remove('ling-translate-loading');
-               }
-           });
-           item.element.setAttribute('data-translated', 'true');
-           item.element.setAttribute('data-translated-lang', targetLanguage);
-           item.element.setAttribute('title', 'Translated');
-        } else if (anyError) {
-           throw new Error('Some parts failed to translate');
-        }
-      });
+      }));
+      
+      // Check if all parts success
+      const allSuccess = item.parts.every(p => p.status === 'success');
+      const anyError = item.parts.some(p => p.status === 'error');
+      
+      if (allSuccess) {
+         item.status = 'success';
+         // Clean up all loading indicators
+         item.parts.forEach(part => {
+             if (part.node.parentElement) {
+                 part.node.parentElement.classList.remove('ling-translate-loading');
+             }
+         });
+         item.element.setAttribute('data-translated', 'true');
+         item.element.setAttribute('data-translated-lang', targetLanguage);
+         item.element.setAttribute('title', 'Translated');
+      } else if (anyError) {
+         throw new Error('Some parts failed to translate');
+      }
     } catch (error) {
       console.error('Translation error:', error);
       item.retryCount++;
@@ -372,7 +378,7 @@ const ContentApp: React.FC = () => {
     limiterRef.current = createRequestLimiter(concurrency, requestsPerSecond);
 
     // 1. Scan DOM
-    const groups = getAllTranslatableGroups();
+    const groups = await getAllTranslatableGroups();
     const itemsMap = new Map<HTMLElement, TranslationItem>();
 
     groups.forEach((textNodes, element) => {
