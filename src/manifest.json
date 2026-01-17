@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Ling Translate",
-  "version": "0.0.11",
-  "description": "A Chrome extension for web translation with customizable AI models.",
+  "name": "Ling 翻译",
+  "version": "0.0.13",
+  "description": "一款支持自定义 AI 模型的网页翻译 Chrome 扩展。",
   "permissions": [
     "storage",
     "activeTab",

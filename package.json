@@ -1,7 +1,7 @@
 {
   "name": "ling-translate",
   "private": true,
-  "version": "0.0.11",
+  "version": "0.0.13",
   "type": "module",
   "scripts": {
     "dev": "node scripts/update-build.js && vite",

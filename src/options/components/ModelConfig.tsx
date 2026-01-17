@@ -55,7 +55,7 @@ export const ModelConfig: React.FC = () => {
 
   const handleDeleteApiConfig = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this API and all its models?')) {
+    if (confirm('确定要删除此 API 及其所有模型吗？')) {
         await deleteApiConfig(id);
     }
   };
@@ -77,21 +77,21 @@ export const ModelConfig: React.FC = () => {
 
       setModalState({
         isOpen: true,
-        title: response.success ? 'Connection Successful' : 'Connection Failed',
+        title: response.success ? '连接成功' : '连接失败',
         content: response.data || { error: response.error }
       });
 
       if (response.success) {
-        setApiTestResult({ success: true, message: 'Connection successful!' });
+        setApiTestResult({ success: true, message: '连接成功！' });
       } else {
-        setApiTestResult({ success: false, message: response.error || 'Connection failed' });
+        setApiTestResult({ success: false, message: response.error || '连接失败' });
       }
     } catch {
-      setApiTestResult({ success: false, message: 'Failed to send test request' });
+      setApiTestResult({ success: false, message: '发送测试请求失败' });
       setModalState({
         isOpen: true,
-        title: 'Connection Failed',
-        content: { error: 'Failed to send test request' }
+        title: '连接失败',
+        content: { error: '发送测试请求失败' }
       });
     } finally {
       setIsTesting(false);
@@ -168,14 +168,14 @@ export const ModelConfig: React.FC = () => {
 
       setModalState({
         isOpen: true,
-        title: response.success ? 'Model Test Successful' : 'Model Test Failed',
+        title: response.success ? '模型测试成功' : '模型测试失败',
         content: response.data || { error: response.error }
       });
     } catch {
       setModalState({
         isOpen: true,
-        title: 'Model Test Failed',
-        content: { error: 'Failed to send test request' }
+        title: '模型测试失败',
+        content: { error: '发送测试请求失败' }
       });
     } finally {
       setIsTesting(false);
@@ -231,30 +231,30 @@ export const ModelConfig: React.FC = () => {
       <>
         <Card>
           <CardHeader>
-            <CardTitle>{isAddingApi ? 'Add New API' : 'Edit API'}</CardTitle>
+            <CardTitle>{isAddingApi ? '添加新 API' : '编辑 API'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
-              label="Name"
+              label="名称"
               value={apiFormData.name || ''}
               onChange={(e) => setApiFormData({ ...apiFormData, name: e.target.value })}
-              placeholder="e.g., OpenAI"
+              placeholder="例如：OpenAI"
             />
             <div className="space-y-1">
               <Input
-                label="Base URL"
+                label="基础 URL"
                 value={apiFormData.baseUrl || ''}
                 onChange={(e) => setApiFormData({ ...apiFormData, baseUrl: e.target.value })}
                 placeholder="https://api.openai.com/v1"
               />
               {apiFormData.baseUrl && (
                 <p className="text-xs text-gray-400 mt-1 px-1 break-all">
-                  Full path: <span className="font-mono">{apiFormData.baseUrl.replace(/\/$/, '')}/chat/completions</span>
+                  完整路径：<span className="font-mono">{apiFormData.baseUrl.replace(/\/$/, '')}/chat/completions</span>
                 </p>
               )}
             </div>
             <Input
-              label="API Key"
+              label="API 密钥"
               type="password"
               value={apiFormData.apiKey || ''}
               onChange={(e) => setApiFormData({ ...apiFormData, apiKey: e.target.value })}
@@ -271,7 +271,7 @@ export const ModelConfig: React.FC = () => {
                    className="relative"
                  >
                    {isTesting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                   Test Connection
+                   测试连接
                  </Button>
                  
                  {apiTestResult && (
@@ -283,10 +283,10 @@ export const ModelConfig: React.FC = () => {
                </div>
 
                <div className="flex gap-2">
-                 <Button variant="outline" onClick={handleCancelApiConfig}>Cancel</Button>
+                 <Button variant="outline" onClick={handleCancelApiConfig}>取消</Button>
                  <Button onClick={handleSaveApiConfig}>
                    <Save className="w-4 h-4 mr-2" />
-                   Save
+                   保存
                  </Button>
                </div>
             </div>
@@ -304,7 +304,7 @@ export const ModelConfig: React.FC = () => {
           </pre>
           <div className="mt-4 flex justify-end">
             <Button onClick={() => setModalState(prev => ({ ...prev, isOpen: false }))}>
-              Close
+              关闭
             </Button>
           </div>
         </Modal>
@@ -317,29 +317,29 @@ export const ModelConfig: React.FC = () => {
       <>
         <Card>
           <CardHeader>
-            <CardTitle>{editingModelId ? 'Edit Model' : 'Add Model'}</CardTitle>
+            <CardTitle>{editingModelId ? '编辑模型' : '添加模型'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
-              label="Model Name (e.g. gpt-4)"
+              label="模型名称（如 gpt-4）"
               value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Max Tokens"
+                label="最大 Token 数"
                 type="number"
                 value={formData.maxTokens || 0}
                 onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
               />
               <Input
-                label="Max Paragraphs"
+                label="最大段落数"
                 type="number"
                 value={formData.maxParagraphs || 0}
                 onChange={(e) => setFormData({ ...formData, maxParagraphs: parseInt(e.target.value) })}
               />
               <Input
-                label="Temperature"
+                label="温度"
                 type="number"
                 min={0}
                 max={2}
@@ -351,16 +351,16 @@ export const ModelConfig: React.FC = () => {
                     temperature: e.target.value === '' ? undefined : parseFloat(e.target.value)
                   })
                 }
-              />
+                />
               <Input
-                label="Concurrency (Threads)"
+                label="并发（线程）"
                 type="number"
                 min={1}
                 value={formData.concurrency || 1}
                 onChange={(e) => setFormData({ ...formData, concurrency: parseInt(e.target.value) || 1 })}
               />
               <Input
-                label="Requests Per Second"
+                label="每秒请求数"
                 type="number"
                 min={1}
                 value={formData.requestsPerSecond || 1}
@@ -369,7 +369,7 @@ export const ModelConfig: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">System Prompt</label>
+              <label className="text-sm font-medium">系统提示词</label>
               <textarea
                 className="w-full h-24 p-2 border rounded-md text-sm font-mono"
                 value={formData.systemPrompt || ''}
@@ -378,7 +378,7 @@ export const ModelConfig: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">User Prompt</label>
+              <label className="text-sm font-medium">用户提示词</label>
               <textarea
                 className="w-full h-24 p-2 border rounded-md text-sm font-mono"
                 value={formData.prompt || ''}
@@ -393,13 +393,13 @@ export const ModelConfig: React.FC = () => {
                 disabled={isTesting || !formData.name}
               >
                 {isTesting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-                Test Model
+                测试模型
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingApiId(null)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setEditingApiId(null)}>取消</Button>
                 <Button onClick={handleSaveModel}>
                   <Save className="w-4 h-4 mr-2" />
-                  Save
+                  保存
                 </Button>
               </div>
             </div>
@@ -417,7 +417,7 @@ export const ModelConfig: React.FC = () => {
           </pre>
           <div className="mt-4 flex justify-end">
             <Button onClick={() => setModalState(prev => ({ ...prev, isOpen: false }))}>
-              Close
+              关闭
             </Button>
           </div>
         </Modal>
@@ -428,16 +428,16 @@ export const ModelConfig: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Configuration</h2>
+        <h2 className="text-2xl font-bold text-gray-800">配置</h2>
         <Button onClick={handleAddApiConfig}>
           <Plus className="w-4 h-4 mr-2" />
-          Add API
+          添加 API
         </Button>
       </div>
       
       {settings.apiConfigs.length === 0 && (
         <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-xl">
-          Please configure an API first.
+          请先配置 API。
         </div>
       )}
 
@@ -450,14 +450,14 @@ export const ModelConfig: React.FC = () => {
             <div className="flex items-center gap-2">
               {expandedApiId === api.id ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
               <h3 className="font-bold text-lg">{api.name}</h3>
-              <span className="text-sm text-gray-500">({api.models.length} models)</span>
+              <span className="text-sm text-gray-500">（{api.models.length} 个模型）</span>
             </div>
             <div className="flex items-center gap-2">
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={(e) => handleEditApiConfig(e, api)}
-                title="Edit API"
+                title="编辑 API"
               >
                 <Edit2 className="w-4 h-4" />
               </Button>
@@ -466,7 +466,7 @@ export const ModelConfig: React.FC = () => {
                 size="icon" 
                 className="text-red-500 hover:text-red-600 hover:bg-red-50" 
                 onClick={(e) => handleDeleteApiConfig(e, api.id)}
-                title="Delete API"
+                title="删除 API"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -479,7 +479,7 @@ export const ModelConfig: React.FC = () => {
                 }}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Model
+                添加模型
               </Button>
             </div>
           </div>
@@ -492,7 +492,7 @@ export const ModelConfig: React.FC = () => {
                     <div>
                       <h4 className="font-bold">{model.name}</h4>
                       <p className="text-xs text-gray-500">
-                        Max Tokens: {model.maxTokens} | Max Paragraphs: {model.maxParagraphs} | Temperature: {model.temperature ?? 0.3} | Concurrency: {model.concurrency ?? 4} | Req/sec: {model.requestsPerSecond ?? model.concurrency ?? 12}
+                        最大 Token 数：{model.maxTokens} | 最大段落数：{model.maxParagraphs} | 温度：{model.temperature ?? 0.3} | 并发：{model.concurrency ?? 4} | 每秒请求：{model.requestsPerSecond ?? model.concurrency ?? 12}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -506,7 +506,7 @@ export const ModelConfig: React.FC = () => {
                   </div>
                 ))}
                 {api.models.length === 0 && (
-                  <p className="text-center text-gray-500 py-4 text-sm">No models configured for this API.</p>
+                  <p className="text-center text-gray-500 py-4 text-sm">该 API 尚未配置模型。</p>
                 )}
               </div>
             </CardContent>
