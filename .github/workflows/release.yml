@@ -67,7 +67,7 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
           name: "Version ${{ steps.get_version.outputs.VERSION }}"
           draft: false
-          prerelease: false
+          prerelease: true
           generate_release_notes: true
           body_path: changelog/v${{ steps.get_version.outputs.VERSION }}.md
           files: |
