@@ -94,7 +94,7 @@ const Options: React.FC = () => {
                     checked={settings.showLoadingIcon ?? true}
                     onChange={(e) => updateSettings({ showLoadingIcon: e.target.checked })}
                   />
-                  Show a loading icon beside text while translating
+                  Show loading indicator (...) beside text while translating
                 </label>
               </div>
 

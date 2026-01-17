@@ -38,25 +38,17 @@ const injectStyles = () => {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    .ling-translate-loading {
-      position: relative;
-      display: inline-block;
-    }
     .ling-translate-loading::after {
-      content: '';
-      position: absolute;
-      right: -14px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 10px;
-      height: 10px;
-      border: 2px solid #3b82f6;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: ling-translate-spin 0.8s linear infinite;
+      content: '...';
+      animation: ling-translate-pulse 1.5s infinite;
+      margin-left: 2px;
+      font-weight: normal;
+      opacity: 0.7;
     }
-    @keyframes ling-translate-spin {
-      to { transform: translateY(-50%) rotate(360deg); }
+    @keyframes ling-translate-pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
     }
     .ling-translate-error {
       color: #ef4444;
