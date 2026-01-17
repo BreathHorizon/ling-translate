@@ -658,11 +658,21 @@ const ContentApp: React.FC = () => {
   const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const themeMode = settings.theme?.mode ?? ((settings.theme?.floatingWallpaper || settings.theme?.settingsWallpaper) ? 'wallpaper' : 'frosted');
   const frostedTone = settings.theme?.frostedTone ?? (systemPrefersDark ? 'dark' : 'light');
+  const maskType = settings.theme?.maskType ?? 'auto';
+  const wallpaperMaskIsDark = maskType === 'dark' || (maskType === 'auto' && systemPrefersDark);
+  const settingsPanelIsDark = themeMode === 'frosted' ? frostedTone === 'dark' : wallpaperMaskIsDark;
   const floatingUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.floatingWallpaper;
   const settingsUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.settingsWallpaper;
   const frostedIconColor = frostedTone === 'light' ? 'text-gray-900' : 'text-white';
   const floatingIconClass = floatingUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
   const settingsIconClass = settingsUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
+  const panelTextClass = settingsPanelIsDark ? 'text-white' : 'text-gray-900';
+  const panelMutedTextClass = settingsPanelIsDark ? 'text-gray-300' : 'text-gray-500';
+  const panelLabelTextClass = settingsPanelIsDark ? 'text-gray-200' : 'text-gray-500';
+  const panelSelectClass = cn(
+    'w-full rounded-md p-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none backdrop-blur-sm',
+    settingsPanelIsDark ? 'bg-gray-900/50 border border-white/15 text-white' : 'bg-white/50 border border-gray-200 text-gray-900'
+  );
 
   const isAutoTranslate = settings.autoTranslateDomains?.includes(window.location.hostname);
 
@@ -696,14 +706,25 @@ const ContentApp: React.FC = () => {
             style={getThemeStyle('settings')}
         >
            <div className="flex justify-between items-center mb-4">
-             <h3 className="font-bold text-gray-800 dark:text-white bg-transparent">Quick Settings</h3>
-             <button onClick={() => setShowMenu(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+             <h3 className={cn("font-bold bg-transparent", panelTextClass)}>Quick Settings</h3>
+             <button
+               onClick={() => setShowMenu(false)}
+               className={cn(
+                 "transition-colors",
+                 settingsPanelIsDark ? "text-gray-300 hover:text-white" : "text-gray-500 hover:text-gray-700"
+               )}
+             >
                <X className="w-4 h-4" />
              </button>
            </div>
            
            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer bg-black/5 dark:bg-white/5 p-2 rounded-lg hover:bg-black/10 transition-colors">
+              <label
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium cursor-pointer p-2 rounded-lg transition-colors",
+                  settingsPanelIsDark ? "text-gray-100 bg-white/5 hover:bg-white/10" : "text-gray-700 bg-black/5 hover:bg-black/10"
+                )}
+              >
                 <input 
                   type="checkbox"
                   className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4"
@@ -714,9 +735,9 @@ const ContentApp: React.FC = () => {
               </label>
 
               <div>
-                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Target Language</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>Target Language</label>
                  <select 
-                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none backdrop-blur-sm"
+                   className={panelSelectClass}
                    value={settings.defaultToLang}
                    onChange={(e) => updateSettings({ defaultToLang: e.target.value })}
                  >
@@ -727,9 +748,9 @@ const ContentApp: React.FC = () => {
               </div>
 
               <div>
-                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>Model</label>
                  <select 
-                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none backdrop-blur-sm"
+                   className={panelSelectClass}
                    value={settings.defaultModelId}
                    onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
                  >
@@ -749,7 +770,7 @@ const ContentApp: React.FC = () => {
               
               <div className="pt-4 border-t border-gray-100/20 dark:border-gray-700/20">
                 <div className="flex items-center justify-between mb-2">
-                   <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                   <h4 className={cn("text-xs font-semibold flex items-center gap-1", panelMutedTextClass)}>
                      <Terminal className="w-3 h-3" /> Developer Mode
                    </h4>
                    <label className="relative inline-flex items-center cursor-pointer">
@@ -767,7 +788,7 @@ const ContentApp: React.FC = () => {
                 
                 {(settings.developer?.enabled) && (
                   <div className="space-y-2 pl-1">
-                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
                         type="checkbox"
                         className="rounded border-gray-300 text-primary focus:ring-primary"
@@ -778,7 +799,7 @@ const ContentApp: React.FC = () => {
                       />
                       Log DOM Operations
                     </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
                         type="checkbox"
                         className="rounded border-gray-300 text-primary focus:ring-primary"
@@ -789,7 +810,7 @@ const ContentApp: React.FC = () => {
                       />
                       Log Translation Content
                     </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
                         type="checkbox"
                         className="rounded border-gray-300 text-primary focus:ring-primary"
