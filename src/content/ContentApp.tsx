@@ -732,10 +732,12 @@ const ContentApp: React.FC = () => {
     if (mode === 'frosted') return frostedStyle;
 
     const wallpaper = (() => {
-      if (type === 'floating') return theme?.floatingWallpaper;
-      if (type === 'settingsPanel') return theme?.settingsWallpaper;
-      if (theme?.syncFloatingWallpaperToSettingsButton && theme?.floatingWallpaper) return theme.floatingWallpaper;
-      return theme?.settingsWallpaper;
+      if (type === 'floating') return theme?.floatingWallpaper || null;
+      if (type === 'settingsPanel') return theme?.settingsWallpaper || null;
+      if (type === 'settingsButton') {
+        return theme?.syncFloatingWallpaperToSettingsButton ? (theme?.floatingWallpaper || null) : null;
+      }
+      return null;
     })();
     if (!wallpaper) return frostedStyle;
 
@@ -761,10 +763,10 @@ const ContentApp: React.FC = () => {
   const wallpaperMaskIsDark = maskType === 'dark' || (maskType === 'auto' && systemPrefersDark);
   const settingsPanelIsDark = themeMode === 'frosted' ? frostedTone === 'dark' : wallpaperMaskIsDark;
   const floatingUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.floatingWallpaper;
-  const settingsUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.settingsWallpaper;
+  const settingsButtonUsesWallpaper = themeMode === 'wallpaper' && !!settings.theme?.syncFloatingWallpaperToSettingsButton && !!settings.theme?.floatingWallpaper;
   const frostedIconColor = frostedTone === 'light' ? 'text-gray-900' : 'text-white';
   const floatingIconClass = floatingUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
-  const settingsIconClass = settingsUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
+  const settingsIconClass = settingsButtonUsesWallpaper ? 'text-white mix-blend-difference' : frostedIconColor;
   const panelTextClass = settingsPanelIsDark ? 'text-white' : 'text-gray-900';
   const panelMutedTextClass = settingsPanelIsDark ? 'text-gray-300' : 'text-gray-500';
   const panelLabelTextClass = settingsPanelIsDark ? 'text-gray-200' : 'text-gray-500';
