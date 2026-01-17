@@ -12,6 +12,8 @@ const MULTI_SEPARATOR_REGEX = /\n\s*%%\s*\n/;
 interface TranslationItem {
   id: string;
   element: HTMLElement;
+  runId: number;
+  originalTitle: string | null;
   parts: {
     node: Text;
     originalText: string;
@@ -199,6 +201,7 @@ const splitMultiTranslation = (text: string): string[] => {
 const ContentApp: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isTranslationEnabled, setIsTranslationEnabled] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const { settings, loadSettings, updateSettings } = useStore();
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,6 +233,7 @@ const ContentApp: React.FC = () => {
   const translationItemsRef = useRef<Map<HTMLElement, TranslationItem>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const limiterRef = useRef<ReturnType<typeof createRequestLimiter> | null>(null);
+  const translationRunIdRef = useRef(0);
 
   // Auto-translate State
   const autoTranslateTriggered = useRef(false);
@@ -263,6 +267,7 @@ const ContentApp: React.FC = () => {
   }, [settings.developer]);
 
   const processTranslation = useCallback(async (item: TranslationItem) => {
+    if (item.runId !== translationRunIdRef.current) return;
     if (item.status === 'translating' || item.status === 'success') return;
 
     const currentSettings = useStore.getState().settings;
@@ -302,6 +307,7 @@ const ContentApp: React.FC = () => {
       const maxParagraphs = Math.max(1, modelConfig?.maxParagraphs ?? 1);
 
       const applyTranslatedPart = (part: TranslationPart, translatedText: string) => {
+        if (item.runId !== translationRunIdRef.current) return;
         const normalized = normalizeTranslationText(part.originalText, translatedText);
         part.translatedText = normalized;
         part.status = 'success';
@@ -315,6 +321,7 @@ const ContentApp: React.FC = () => {
       };
 
       const markPartError = (part: TranslationPart, error?: unknown) => {
+        if (item.runId !== translationRunIdRef.current) return;
         part.status = 'error';
         if (part.node.parentElement) {
           part.node.parentElement.classList.remove('ling-translate-loading');
@@ -326,6 +333,7 @@ const ContentApp: React.FC = () => {
       };
 
       const translateSinglePart = async (part: TranslationPart) => {
+        if (item.runId !== translationRunIdRef.current) return;
         part.status = 'translating';
         const originalText = part.originalText;
         logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
@@ -350,6 +358,7 @@ const ContentApp: React.FC = () => {
             return result;
           });
 
+          if (item.runId !== translationRunIdRef.current) return;
           if (response.success && response.data) {
             const cleaned = stripThoughtBlocks(response.data.translatedText ?? '');
             if (!cleaned.trim()) {
@@ -368,6 +377,7 @@ const ContentApp: React.FC = () => {
       };
 
       const translateBatch = async (batch: TranslationPart[]) => {
+        if (item.runId !== translationRunIdRef.current) return;
         if (batch.length === 1) {
           await translateSinglePart(batch[0]);
           return;
@@ -399,6 +409,7 @@ const ContentApp: React.FC = () => {
           return result;
         });
 
+        if (item.runId !== translationRunIdRef.current) return;
         if (!response.success || !response.data) {
           batch.forEach(part => markPartError(part, response.error));
           throw new Error(response.error || 'Translation failed');
@@ -438,6 +449,7 @@ const ContentApp: React.FC = () => {
                  part.node.parentElement.classList.remove('ling-translate-loading');
              }
          });
+         if (item.runId !== translationRunIdRef.current) return;
          item.element.setAttribute('data-translated', 'true');
          item.element.setAttribute('data-translated-lang', targetLanguage);
          item.element.setAttribute('title', 'Translated');
@@ -462,7 +474,10 @@ const ContentApp: React.FC = () => {
             }
         });
         logger.info(`Retrying translation for item ${item.id} (Attempt ${item.retryCount + 1}/${MAX_RETRIES})`);
-        setTimeout(() => processTranslation(item), 1000 * Math.min(item.retryCount, 5));
+        setTimeout(() => {
+          if (item.runId !== translationRunIdRef.current) return;
+          processTranslation(item);
+        }, 1000 * Math.min(item.retryCount, 5));
       } else {
         item.status = 'error';
         // Reset text content and clean up CSS classes on error
@@ -481,7 +496,55 @@ const ContentApp: React.FC = () => {
     }
   }, []);
 
+  const cancelTranslation = useCallback(() => {
+    translationRunIdRef.current += 1;
+
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+
+    limiterRef.current = null;
+
+    const itemsMap = translationItemsRef.current;
+    itemsMap.forEach((item) => {
+      item.parts.forEach(part => {
+        if (part.node.parentElement) {
+          part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
+        }
+        if (part.node.textContent !== part.originalText) {
+          part.node.textContent = part.originalText;
+        }
+        part.status = 'pending';
+        part.translatedText = undefined;
+      });
+
+      item.status = 'idle';
+      item.retryCount = 0;
+      item.isVisible = false;
+
+      item.element.removeAttribute('data-translated');
+      item.element.removeAttribute('data-translated-lang');
+      const currentTitle = item.element.getAttribute('title');
+      if (currentTitle === 'Translated') {
+        if (item.originalTitle === null) {
+          item.element.removeAttribute('title');
+        } else {
+          item.element.setAttribute('title', item.originalTitle);
+        }
+      }
+    });
+
+    translationItemsRef.current = new Map();
+    setIsTranslating(false);
+    setIsTranslationEnabled(false);
+  }, []);
+
   const handleTranslate = useCallback(async () => {
+    if (isTranslationEnabled) {
+      cancelTranslation();
+      return;
+    }
     if (isTranslating) return;
     
     // Cleanup previous observer if exists
@@ -489,8 +552,11 @@ const ContentApp: React.FC = () => {
       observerRef.current.disconnect();
       observerRef.current = null;
     }
+    translationRunIdRef.current += 1;
+    const runId = translationRunIdRef.current;
     
     await loadSettings();
+    if (runId !== translationRunIdRef.current) return;
     const currentSettings = useStore.getState().settings;
 
     if (!currentSettings.defaultModelId) {
@@ -501,6 +567,7 @@ const ContentApp: React.FC = () => {
     }
 
     setIsTranslating(true);
+    setIsTranslationEnabled(true);
     
     // Setup Limiter
     const [apiId, modelId] = currentSettings.defaultModelId.split(':');
@@ -511,9 +578,11 @@ const ContentApp: React.FC = () => {
     const concurrency = Math.max(1, modelConfig?.concurrency ?? 4);
     const requestsPerSecond = Math.max(1, modelConfig?.requestsPerSecond ?? 12);
     limiterRef.current = createRequestLimiter(concurrency, requestsPerSecond);
+    if (runId !== translationRunIdRef.current) return;
 
     // 1. Scan DOM
     const groups = await getAllTranslatableGroups();
+    if (runId !== translationRunIdRef.current) return;
     const itemsMap = new Map<HTMLElement, TranslationItem>();
 
     groups.forEach((textNodes, element) => {
@@ -529,6 +598,8 @@ const ContentApp: React.FC = () => {
       itemsMap.set(element, {
         id: Math.random().toString(36).substr(2, 9),
         element,
+        runId,
+        originalTitle: element.getAttribute('title'),
         parts,
         status: 'pending',
         retryCount: 0,
@@ -537,12 +608,14 @@ const ContentApp: React.FC = () => {
     });
 
     translationItemsRef.current = itemsMap;
+    if (runId !== translationRunIdRef.current) return;
 
     // 2. Setup IntersectionObserver with improved configuration
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         const item = itemsMap.get(entry.target as HTMLElement);
         if (!item) return;
+        if (item.runId !== translationRunIdRef.current) return;
 
         if (entry.isIntersecting) {
             // Only trigger if not already processing or completed
@@ -559,10 +632,15 @@ const ContentApp: React.FC = () => {
         threshold: 0.01
     });
 
+    if (runId !== translationRunIdRef.current) {
+      observer.disconnect();
+      return;
+    }
     observerRef.current = observer;
 
     // 3. Immediately translate visible elements (above the fold)
     itemsMap.forEach((item) => {
+        if (item.runId !== translationRunIdRef.current) return;
         const rect = item.element.getBoundingClientRect();
         const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
         if (isInViewport) {
@@ -584,7 +662,7 @@ const ContentApp: React.FC = () => {
     // For now, let's keep it simple: The button triggered the "mode".
     // We can set isTranslating to false after scanning, but the observers keep running.
     setIsTranslating(false); 
-  }, [isTranslating, loadSettings, processTranslation]);
+  }, [cancelTranslation, isTranslating, isTranslationEnabled, loadSettings, processTranslation]);
 
   // Check for auto-translate after settings are loaded
   useEffect(() => {
@@ -947,13 +1025,17 @@ const ContentApp: React.FC = () => {
       {/* Main FAB */}
       <button
         onClick={handleTranslate}
-        disabled={isTranslating}
+        disabled={isTranslating && !isTranslationEnabled}
         className={cn(
           "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 relative active:scale-95",
-          isTranslating && "cursor-wait opacity-80"
+          isTranslating && !isTranslationEnabled && "cursor-wait opacity-80",
+          isTranslationEnabled && "ring-2 ring-emerald-400/35"
         )}
         style={getThemeStyle('floating')}
       >
+        {isTranslationEnabled && (
+          <span className="absolute inset-0 rounded-full bg-emerald-400/20 pointer-events-none" />
+        )}
         {isTranslating ? (
           <Loader2 className={cn("w-5 h-5 animate-spin", floatingIconClass)} />
         ) : (
