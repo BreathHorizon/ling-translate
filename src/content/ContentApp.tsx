@@ -634,6 +634,8 @@ const ContentApp: React.FC = () => {
     startY: number;
     initialLeft: number;
     initialTop: number;
+    initialWidth: number;
+    initialHeight: number;
     hasMoved: boolean;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -657,16 +659,13 @@ const ContentApp: React.FC = () => {
       let newY = initialTop + dy;
 
       // Boundary checks
-      const container = containerRef.current;
-      if (container) {
-          const width = container.offsetWidth;
-          const height = container.offsetHeight;
-          const maxX = window.innerWidth - width;
-          const maxY = window.innerHeight - height;
-          
-          newX = Math.min(Math.max(0, newX), maxX);
-          newY = Math.min(Math.max(0, newY), maxY);
-      }
+      const width = dragRef.current.initialWidth;
+      const height = dragRef.current.initialHeight;
+      const maxX = document.documentElement.clientWidth - width;
+      const maxY = document.documentElement.clientHeight - height;
+      
+      newX = Math.min(Math.max(0, newX), maxX);
+      newY = Math.min(Math.max(0, newY), maxY);
 
       setPosition({ x: newX, y: newY });
     }
@@ -702,6 +701,8 @@ const ContentApp: React.FC = () => {
       startY: e.clientY,
       initialLeft,
       initialTop,
+      initialWidth: rect.width,
+      initialHeight: rect.height,
       hasMoved: false,
     };
 

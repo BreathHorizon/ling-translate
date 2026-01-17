@@ -105,6 +105,8 @@ const normalizeTemperature = (temperature: unknown): number => {
   const numeric = typeof temperature === 'number' ? temperature : Number(temperature);
   const normalized = Number.isFinite(numeric) ? numeric : 0.3;
   return Math.min(2, Math.max(0, normalized));
+};
+
 const stripThoughtBlocks = (text: string): string => {
   return text
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
