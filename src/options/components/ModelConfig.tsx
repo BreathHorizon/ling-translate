@@ -4,22 +4,126 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { Trash2, Plus, Save, Edit2, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react';
-import { ModelConfig as IModelConfig } from '@/lib/types';
+import { Trash2, Plus, Save, Edit2, ChevronDown, ChevronRight, Loader2, Play, CheckCircle2, XCircle } from 'lucide-react';
+import { ModelConfig as IModelConfig, ApiConfig as IApiConfig } from '@/lib/types';
 import { generateId } from '@/lib/utils';
 
 export const ModelConfig: React.FC = () => {
-  const { settings, updateApiConfig } = useStore();
+  const { settings, updateApiConfig, addApiConfig, deleteApiConfig } = useStore();
+  
+  // Model State
   const [expandedApiId, setExpandedApiId] = useState<string | null>(null);
   const [editingApiId, setEditingApiId] = useState<string | null>(null);
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<IModelConfig>>({});
+  
+  // API State
+  const [isAddingApi, setIsAddingApi] = useState(false);
+  const [editingApiConfigId, setEditingApiConfigId] = useState<string | null>(null);
+  const [apiFormData, setApiFormData] = useState<Partial<IApiConfig>>({});
+  const [apiTestResult, setApiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  // Shared State
   const [isTesting, setIsTesting] = useState(false);
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     title: string;
     content: unknown;
   }>({ isOpen: false, title: '', content: null });
+
+  // --- API Handlers ---
+
+  const handleEditApiConfig = (e: React.MouseEvent, api: IApiConfig) => {
+    e.stopPropagation();
+    setApiFormData(api);
+    setEditingApiConfigId(api.id);
+    setIsAddingApi(false);
+    setApiTestResult(null);
+  };
+
+  const handleAddApiConfig = () => {
+    setApiFormData({
+      name: '',
+      baseUrl: '',
+      apiKey: '',
+      models: []
+    });
+    setEditingApiConfigId(null);
+    setIsAddingApi(true);
+    setApiTestResult(null);
+  };
+
+  const handleDeleteApiConfig = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this API and all its models?')) {
+        await deleteApiConfig(id);
+    }
+  };
+
+  const handleTestApiConnection = async () => {
+    if (!apiFormData.baseUrl || !apiFormData.apiKey) return;
+    
+    setIsTesting(true);
+    setApiTestResult(null);
+    
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'TEST_CONNECTION',
+        payload: {
+          baseUrl: apiFormData.baseUrl,
+          apiKey: apiFormData.apiKey
+        }
+      });
+
+      setModalState({
+        isOpen: true,
+        title: response.success ? 'Connection Successful' : 'Connection Failed',
+        content: response.data || { error: response.error }
+      });
+
+      if (response.success) {
+        setApiTestResult({ success: true, message: 'Connection successful!' });
+      } else {
+        setApiTestResult({ success: false, message: response.error || 'Connection failed' });
+      }
+    } catch {
+      setApiTestResult({ success: false, message: 'Failed to send test request' });
+      setModalState({
+        isOpen: true,
+        title: 'Connection Failed',
+        content: { error: 'Failed to send test request' }
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSaveApiConfig = async () => {
+    if (!apiFormData.name || !apiFormData.baseUrl || !apiFormData.apiKey) return;
+
+    if (editingApiConfigId) {
+      await updateApiConfig(apiFormData as IApiConfig);
+    } else {
+      await addApiConfig({
+        ...apiFormData,
+        id: generateId(),
+        models: []
+      } as IApiConfig);
+    }
+    setEditingApiConfigId(null);
+    setIsAddingApi(false);
+    setApiFormData({});
+    setApiTestResult(null);
+  };
+
+  const handleCancelApiConfig = () => {
+    setEditingApiConfigId(null);
+    setIsAddingApi(false);
+    setApiFormData({});
+    setApiTestResult(null);
+  };
+
+  // --- Model Handlers ---
 
   const handleEditModel = (apiId: string, model: IModelConfig) => {
     setEditingApiId(apiId);
@@ -78,7 +182,7 @@ export const ModelConfig: React.FC = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveModel = async () => {
     if (!editingApiId || !formData.name) return;
 
     const api = settings.apiConfigs.find(a => a.id === editingApiId);
@@ -119,6 +223,94 @@ export const ModelConfig: React.FC = () => {
   const toggleExpand = (apiId: string) => {
     setExpandedApiId(expandedApiId === apiId ? null : apiId);
   };
+
+  // --- Render ---
+
+  if (isAddingApi || editingApiConfigId) {
+    return (
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle>{isAddingApi ? 'Add New API' : 'Edit API'}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              label="Name"
+              value={apiFormData.name || ''}
+              onChange={(e) => setApiFormData({ ...apiFormData, name: e.target.value })}
+              placeholder="e.g., OpenAI"
+            />
+            <div className="space-y-1">
+              <Input
+                label="Base URL"
+                value={apiFormData.baseUrl || ''}
+                onChange={(e) => setApiFormData({ ...apiFormData, baseUrl: e.target.value })}
+                placeholder="https://api.openai.com/v1"
+              />
+              {apiFormData.baseUrl && (
+                <p className="text-xs text-gray-400 mt-1 px-1 break-all">
+                  Full path: <span className="font-mono">{apiFormData.baseUrl.replace(/\/$/, '')}/chat/completions</span>
+                </p>
+              )}
+            </div>
+            <Input
+              label="API Key"
+              type="password"
+              value={apiFormData.apiKey || ''}
+              onChange={(e) => setApiFormData({ ...apiFormData, apiKey: e.target.value })}
+              placeholder="sk-..."
+            />
+            
+            <div className="flex items-center justify-between mt-4">
+               <div className="flex items-center gap-2">
+                 <Button 
+                   variant="outline" 
+                   size="sm"
+                   onClick={handleTestApiConnection} 
+                   disabled={isTesting || !apiFormData.baseUrl || !apiFormData.apiKey}
+                   className="relative"
+                 >
+                   {isTesting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                   Test Connection
+                 </Button>
+                 
+                 {apiTestResult && (
+                   <div className={`flex items-center gap-1 text-sm ${apiTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                     {apiTestResult.success ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                     {apiTestResult.message}
+                   </div>
+                 )}
+               </div>
+
+               <div className="flex gap-2">
+                 <Button variant="outline" onClick={handleCancelApiConfig}>Cancel</Button>
+                 <Button onClick={handleSaveApiConfig}>
+                   <Save className="w-4 h-4 mr-2" />
+                   Save
+                 </Button>
+               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Modal
+          isOpen={modalState.isOpen}
+          onClose={() => setModalState(prev => ({ ...prev, isOpen: false }))}
+          title={modalState.title}
+          className="max-w-3xl"
+        >
+          <pre className="bg-gray-100 p-4 rounded-lg overflow-auto max-h-[60vh] text-xs font-mono whitespace-pre-wrap break-all">
+            {JSON.stringify(modalState.content, null, 2)}
+          </pre>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => setModalState(prev => ({ ...prev, isOpen: false }))}>
+              Close
+            </Button>
+          </div>
+        </Modal>
+      </>
+    );
+  }
 
   if (editingApiId) {
     return (
@@ -205,7 +397,7 @@ export const ModelConfig: React.FC = () => {
               </Button>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setEditingApiId(null)}>Cancel</Button>
-                <Button onClick={handleSave}>
+                <Button onClick={handleSaveModel}>
                   <Save className="w-4 h-4 mr-2" />
                   Save
                 </Button>
@@ -235,7 +427,13 @@ export const ModelConfig: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Model Configuration</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Configuration</h2>
+        <Button onClick={handleAddApiConfig}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add API
+        </Button>
+      </div>
       
       {settings.apiConfigs.length === 0 && (
         <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-xl">
@@ -254,16 +452,36 @@ export const ModelConfig: React.FC = () => {
               <h3 className="font-bold text-lg">{api.name}</h3>
               <span className="text-sm text-gray-500">({api.models.length} models)</span>
             </div>
-            <Button 
-              size="sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddModel(api.id);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Model
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={(e) => handleEditApiConfig(e, api)}
+                title="Edit API"
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50" 
+                onClick={(e) => handleDeleteApiConfig(e, api.id)}
+                title="Delete API"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              <div className="w-px h-4 bg-gray-300 mx-2" />
+              <Button 
+                size="sm" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddModel(api.id);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Model
+              </Button>
+            </div>
           </div>
           
           {expandedApiId === api.id && (

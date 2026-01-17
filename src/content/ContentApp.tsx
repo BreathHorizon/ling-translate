@@ -38,25 +38,17 @@ const injectStyles = () => {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    .ling-translate-loading {
-      position: relative;
-      display: inline-block;
-    }
     .ling-translate-loading::after {
-      content: '';
-      position: absolute;
-      right: -14px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 10px;
-      height: 10px;
-      border: 2px solid #3b82f6;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: ling-translate-spin 0.8s linear infinite;
+      content: '...';
+      animation: ling-translate-pulse 1.5s infinite;
+      margin-left: 2px;
+      font-weight: normal;
+      opacity: 0.7;
     }
-    @keyframes ling-translate-spin {
-      to { transform: translateY(-50%) rotate(360deg); }
+    @keyframes ling-translate-pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
     }
     .ling-translate-error {
       color: #ef4444;
@@ -264,24 +256,13 @@ const ContentApp: React.FC = () => {
     return () => chrome.storage.onChanged.removeListener(handleStorageChange);
   }, []);
 
-  // Check for auto-translate after settings are loaded
-  useEffect(() => {
-    if (!autoTranslateTriggered.current && settings.autoTranslateDomains?.includes(window.location.hostname)) {
-       // Small delay to ensure everything is ready
-       setTimeout(() => {
-         handleTranslate();
-       }, 500);
-       autoTranslateTriggered.current = true;
-    }
-  }, [settings.autoTranslateDomains]);
-
   useEffect(() => {
     if (settings.developer) {
       logger.updateSettings(settings.developer);
     }
   }, [settings.developer]);
 
-  const processTranslation = async (item: TranslationItem) => {
+  const processTranslation = useCallback(async (item: TranslationItem) => {
     if (item.status === 'translating' || item.status === 'success') return;
 
     const currentSettings = useStore.getState().settings;
@@ -498,9 +479,9 @@ const ContentApp: React.FC = () => {
     } finally {
        // No cleanup needed for text suffix
     }
-  };
+  }, []);
 
-  const handleTranslate = async () => {
+  const handleTranslate = useCallback(async () => {
     if (isTranslating) return;
     
     // Cleanup previous observer if exists
@@ -603,7 +584,17 @@ const ContentApp: React.FC = () => {
     // For now, let's keep it simple: The button triggered the "mode".
     // We can set isTranslating to false after scanning, but the observers keep running.
     setIsTranslating(false); 
-  };
+  }, [isTranslating, loadSettings, processTranslation]);
+
+  // Check for auto-translate after settings are loaded
+  useEffect(() => {
+    if (!autoTranslateTriggered.current && settings.autoTranslateDomains?.includes(window.location.hostname)) {
+      setTimeout(() => {
+        handleTranslate();
+      }, 500);
+      autoTranslateTriggered.current = true;
+    }
+  }, [handleTranslate, settings.autoTranslateDomains]);
 
   const supportedLanguages = [
     { code: 'zh-CN', name: 'Chinese (Simplified)' },
