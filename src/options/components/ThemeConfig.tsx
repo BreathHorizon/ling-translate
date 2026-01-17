@@ -12,6 +12,7 @@ export const ThemeConfig: React.FC = () => {
     mode: 'frosted' as const,
     frostedTone: 'dark' as const,
     frostedOpacity: 0.72,
+    syncFloatingWallpaperToSettingsButton: false,
     maskType: 'auto' as const,
     maskOpacity: 0.8,
     ...settings.theme,
@@ -171,6 +172,16 @@ export const ThemeConfig: React.FC = () => {
                      className="w-full max-w-xs accent-primary"
                    />
                  </div>
+
+                 <label className="flex items-center gap-3 text-sm text-gray-700">
+                   <input
+                     type="checkbox"
+                     className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                     checked={localTheme.syncFloatingWallpaperToSettingsButton ?? false}
+                     onChange={(e) => updateLocalTheme({ syncFloatingWallpaperToSettingsButton: e.target.checked })}
+                   />
+                   Sync floating wallpaper to settings button
+                 </label>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

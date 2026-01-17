@@ -708,7 +708,7 @@ const ContentApp: React.FC = () => {
     }
   };
 
-  const getThemeStyle = (type: 'floating' | 'settings') => {
+  const getThemeStyle = (type: 'floating' | 'settingsPanel' | 'settingsButton') => {
     const { theme } = settings;
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -731,7 +731,12 @@ const ContentApp: React.FC = () => {
 
     if (mode === 'frosted') return frostedStyle;
 
-    const wallpaper = type === 'floating' ? theme?.floatingWallpaper : theme?.settingsWallpaper;
+    const wallpaper = (() => {
+      if (type === 'floating') return theme?.floatingWallpaper;
+      if (type === 'settingsPanel') return theme?.settingsWallpaper;
+      if (theme?.syncFloatingWallpaperToSettingsButton && theme?.floatingWallpaper) return theme.floatingWallpaper;
+      return theme?.settingsWallpaper;
+    })();
     if (!wallpaper) return frostedStyle;
 
     const maskType = theme?.maskType ?? 'auto';
@@ -797,7 +802,7 @@ const ContentApp: React.FC = () => {
       {showMenu && (
         <div 
             className="absolute bottom-full mb-2 right-0 w-72 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-bottom-2 z-[100] text-left overflow-hidden"
-            style={getThemeStyle('settings')}
+            style={getThemeStyle('settingsPanel')}
         >
            <div className="flex justify-between items-center mb-4">
              <h3 className={cn("font-bold bg-transparent", panelTextClass)}>Quick Settings</h3>
@@ -930,7 +935,7 @@ const ContentApp: React.FC = () => {
          <button
             onClick={() => setShowMenu(!showMenu)}
             className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20"
-            style={getThemeStyle('settings')}
+            style={getThemeStyle('settingsButton')}
             title="Settings"
          >
            <Settings className={cn("w-4 h-4", settingsIconClass)} />

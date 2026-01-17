@@ -37,6 +37,7 @@ export interface ThemeSettings {
   frostedOpacity: number;
   floatingWallpaper?: string;
   settingsWallpaper?: string;
+  syncFloatingWallpaperToSettingsButton?: boolean;
   maskType: 'light' | 'dark' | 'auto';
   maskOpacity: number;
 }
@@ -100,6 +101,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     mode: 'frosted',
     frostedTone: 'dark',
     frostedOpacity: 0.72,
+    syncFloatingWallpaperToSettingsButton: false,
     maskType: 'auto',
     maskOpacity: 0.8
   },
