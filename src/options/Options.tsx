@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { ApiConfig } from './components/ApiConfig';
 import { ModelConfig } from './components/ModelConfig';
 import { ThemeConfig } from './components/ThemeConfig';
+import { AutoTranslateConfig } from './components/AutoTranslateConfig';
 import { About } from './components/About';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
@@ -203,8 +203,8 @@ const Options: React.FC = () => {
             </div>
           )}
           {activeTab === 'theme' && <ThemeConfig />}
-          {activeTab === 'apis' && <ApiConfig />}
           {activeTab === 'models' && <ModelConfig />}
+          {activeTab === 'auto_translate' && <AutoTranslateConfig />}
            {activeTab === 'prompts' && (
              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
               <h2 className="text-2xl font-bold mb-4">Prompt Configuration</h2>
