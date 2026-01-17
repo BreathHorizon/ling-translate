@@ -45,8 +45,8 @@ jobs:
 
       - name: Rename dist
         run: |
-          mv release/release.zip ./ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
-          mv dist.crx ./ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
+          mv release/release.zip ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
+          mv dist.crx ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
