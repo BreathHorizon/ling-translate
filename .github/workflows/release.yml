@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*" # 识别推送 v 开头的 tag 时触发
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "22"
+
+      - name: Export Pem File
+        run: |
+          echo "${{ secrets.PEM_FILE }}" > ./key.pem
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: 'latest'
+
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build
+        run: npm run build
+      
+      - name: Pack Extension
+        run: |
+            google-chrome --pack-extension=./dist --pack-extension-key=./key.pem
+
+      - name: Rename dist
+        run: |
+          mv release/release.zip ./ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
+          mv dist.crx ./ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUBTOKEN }}
+          name: "Version ${{ steps.get_version.outputs.VERSION }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body_path: changelog/v${{ steps.get_version.outputs.VERSION }}.md
+          files: |
+            ling-translate-v${{ steps.get_version.outputs.VERSION }}.zip
+            ling-translate-v${{ steps.get_version.outputs.VERSION }}.crx
