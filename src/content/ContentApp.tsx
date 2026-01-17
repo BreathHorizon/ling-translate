@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Languages, Settings, Loader2, X, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils'
-import { TranslationRequest, TranslationResponse } from '@/lib/types';
+import { TranslationRequest, TranslationResponse, UserSettings } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 import { logger } from '@/lib/logger';
 
@@ -182,13 +182,41 @@ const ContentApp: React.FC = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const limiterRef = useRef<ReturnType<typeof createRequestLimiter> | null>(null);
 
+  // Auto-translate State
+  const autoTranslateTriggered = useRef(false);
+
   useEffect(() => {
-    loadSettings();
-    injectStyles();
+    const init = async () => {
+      await loadSettings();
+      injectStyles();
+    };
+    init();
     return () => {
       observerRef.current?.disconnect();
     };
   }, [loadSettings]);
+
+  // Listen for storage changes to update settings in real-time
+  useEffect(() => {
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local' && changes.settings && changes.settings.newValue) {
+        useStore.setState({ settings: changes.settings.newValue as UserSettings });
+      }
+    };
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
+
+  // Check for auto-translate after settings are loaded
+  useEffect(() => {
+    if (!autoTranslateTriggered.current && settings.autoTranslateDomains?.includes(window.location.hostname)) {
+       // Small delay to ensure everything is ready
+       setTimeout(() => {
+         handleTranslate();
+       }, 500);
+       autoTranslateTriggered.current = true;
+    }
+  }, [settings.autoTranslateDomains]);
 
   useEffect(() => {
     if (settings.developer) {
@@ -562,11 +590,45 @@ const ContentApp: React.FC = () => {
     }
   };
 
+  // Theme Helper
+  const getThemeStyle = (type: 'floating' | 'settings') => {
+    const { theme } = settings;
+    if (!theme) return {};
+
+    const wallpaper = type === 'floating' ? theme.floatingWallpaper : theme.settingsWallpaper;
+    const isDark = theme.maskType === 'dark' || (theme.maskType === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const maskColor = isDark ? '30, 58, 138' : '255, 255, 255'; // Dark Blue vs White
+    const opacity = theme.maskOpacity ?? 0.9;
+
+    const background = wallpaper 
+      ? `linear-gradient(rgba(${maskColor}, ${opacity}), rgba(${maskColor}, ${opacity})), url(${wallpaper})`
+      : `rgba(${maskColor}, ${opacity})`;
+
+    return {
+      backgroundImage: wallpaper ? background : undefined,
+      backgroundColor: !wallpaper ? `rgba(${maskColor}, ${opacity})` : undefined,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backdropFilter: 'blur(8px)'
+    };
+  };
+
+  const isAutoTranslate = settings.autoTranslateDomains?.includes(window.location.hostname);
+
+  const toggleAutoTranslate = () => {
+    const hostname = window.location.hostname;
+    const currentDomains = settings.autoTranslateDomains || [];
+    const newDomains = currentDomains.includes(hostname)
+      ? currentDomains.filter(d => d !== hostname)
+      : [...currentDomains, hostname];
+    updateSettings({ autoTranslateDomains: newDomains });
+  };
+
   return (
     <div 
       ref={containerRef}
       className={cn(
-        "fixed flex flex-col items-end gap-2 font-sans text-gray-900 z-[9999]",
+        "fixed flex flex-col items-center gap-2 font-sans text-gray-900 z-[9999]",
         !position && "top-1/2 right-0 -translate-y-1/2", // Initial position
         isDragging && "cursor-move"
       )}
@@ -578,19 +640,32 @@ const ContentApp: React.FC = () => {
     >
       {/* Quick Settings Menu */}
       {showMenu && (
-        <div className="absolute top-0 right-14 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-right-2 z-50 text-left">
+        <div 
+            className="absolute bottom-full mb-2 right-0 w-72 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-bottom-2 z-50 text-left overflow-hidden"
+            style={getThemeStyle('settings')}
+        >
            <div className="flex justify-between items-center mb-4">
-             <h3 className="font-bold text-gray-800 dark:text-white">Quick Settings</h3>
+             <h3 className="font-bold text-gray-800 dark:text-white bg-transparent">Quick Settings</h3>
              <button onClick={() => setShowMenu(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                <X className="w-4 h-4" />
              </button>
            </div>
            
            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer bg-black/5 dark:bg-white/5 p-2 rounded-lg hover:bg-black/10 transition-colors">
+                <input 
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4"
+                  checked={isAutoTranslate}
+                  onChange={toggleAutoTranslate}
+                />
+                Auto-translate this site
+              </label>
+
               <div>
                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Target Language</label>
                  <select 
-                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none backdrop-blur-sm"
                    value={settings.defaultToLang}
                    onChange={(e) => updateSettings({ defaultToLang: e.target.value })}
                  >
@@ -603,7 +678,7 @@ const ContentApp: React.FC = () => {
               <div>
                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
                  <select 
-                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                   className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none backdrop-blur-sm"
                    value={settings.defaultModelId}
                    onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
                  >
@@ -615,13 +690,13 @@ const ContentApp: React.FC = () => {
               </div>
 
               <button 
-                className="w-full py-2 text-sm text-primary hover:bg-primary/5 dark:hover:bg-primary/20 rounded-md transition-colors font-medium" 
+                className="w-full py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors font-medium" 
                 onClick={() => chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' })}
               >
                  More Settings
               </button>
               
-              <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="pt-4 border-t border-gray-100/20 dark:border-gray-700/20">
                 <div className="flex items-center justify-between mb-2">
                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1">
                      <Terminal className="w-3 h-3" /> Developer Mode
@@ -683,12 +758,13 @@ const ContentApp: React.FC = () => {
 
       {/* Settings Button */}
       <div className={cn(
-        "transition-all duration-300 ease-in-out transform origin-right mb-1 mr-1",
-        isHovered || showMenu ? "opacity-100 translate-x-0 scale-100" : "opacity-0 translate-x-10 scale-0 pointer-events-none"
+        "transition-all duration-300 ease-in-out transform absolute bottom-12 z-0",
+        isHovered || showMenu ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"
       )}>
          <button
             onClick={() => setShowMenu(!showMenu)}
-            className="w-8 h-8 rounded-full bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 shadow-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors border border-gray-100 dark:border-gray-600"
+            className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20 text-gray-700 dark:text-gray-200"
+            style={getThemeStyle('settings')} // Use settings theme for settings button too? Or just default? Let's use settings theme for consistency or floating theme? User said "custom floating window background... custom settings panel wallpaper". The buttons are part of floating window.
             title="Settings"
          >
            <Settings className="w-4 h-4" />
@@ -700,16 +776,17 @@ const ContentApp: React.FC = () => {
         onClick={handleTranslate}
         disabled={isTranslating}
         className={cn(
-          "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 mr-1",
-          "bg-primary text-white hover:bg-primary-dark active:scale-95",
-          "dark:bg-primary-dark dark:text-gray-100",
+          "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 relative",
+          !settings.theme?.floatingWallpaper && "bg-primary text-white hover:bg-primary-dark", // Fallback colors if no wallpaper
+          !settings.theme?.floatingWallpaper && "dark:bg-primary-dark dark:text-gray-100",
           isTranslating && "cursor-wait opacity-80"
         )}
+        style={getThemeStyle('floating')}
       >
         {isTranslating ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
+          <Loader2 className={cn("w-5 h-5 animate-spin", settings.theme?.floatingWallpaper && "text-white mix-blend-difference")} />
         ) : (
-          <Languages className="w-5 h-5" />
+          <Languages className={cn("w-5 h-5", settings.theme?.floatingWallpaper && "text-white mix-blend-difference")} />
         )}
       </button>
     </div>

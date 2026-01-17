@@ -30,11 +30,20 @@ export interface DeveloperSettings {
   logNetwork: boolean;
 }
 
+export interface ThemeSettings {
+  floatingWallpaper?: string;
+  settingsWallpaper?: string;
+  maskType: 'light' | 'dark' | 'auto';
+  maskOpacity: number;
+}
+
 export interface UserSettings {
   defaultFromLang: string;
   defaultToLang: string;
   defaultModelId: string; // Format: "apiId:modelId"
   sitePreferences: Record<string, SitePreference>;
+  autoTranslateDomains: string[];
+  theme: ThemeSettings;
   apiConfigs: ApiConfig[];
   showLoadingIcon: boolean;
   developer: DeveloperSettings;
@@ -82,6 +91,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   defaultToLang: 'zh-CN',
   defaultModelId: 'default-api:default-model',
   sitePreferences: {},
+  autoTranslateDomains: [],
+  theme: {
+    maskType: 'auto',
+    maskOpacity: 0.8
+  },
   apiConfigs: [],
   showLoadingIcon: true,
   developer: {

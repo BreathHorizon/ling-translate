@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ApiConfig } from './components/ApiConfig';
 import { ModelConfig } from './components/ModelConfig';
+import { ThemeConfig } from './components/ThemeConfig';
 import { About } from './components/About';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
@@ -201,6 +202,7 @@ const Options: React.FC = () => {
               </div>
             </div>
           )}
+          {activeTab === 'theme' && <ThemeConfig />}
           {activeTab === 'apis' && <ApiConfig />}
           {activeTab === 'models' && <ModelConfig />}
            {activeTab === 'prompts' && (

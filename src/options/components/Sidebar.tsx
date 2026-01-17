@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Server, MessageSquare, Globe, Terminal, Info } from 'lucide-react';
+import { Settings, Server, MessageSquare, Globe, Terminal, Info, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -10,6 +10,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
     { id: 'general', label: 'General', icon: Settings },
+    { id: 'theme', label: 'Theme', icon: Palette },
     { id: 'apis', label: 'API Management', icon: Server },
     { id: 'models', label: 'Models', icon: MessageSquare },
     { id: 'prompts', label: 'Prompts', icon: Terminal },
