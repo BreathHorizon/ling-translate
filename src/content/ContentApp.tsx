@@ -183,6 +183,15 @@ const chunkParts = <T,>(items: T[], size: number): T[][] => {
   return chunks;
 };
 
+const stripThoughtBlocks = (text: string): string => {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
+    .replace(/<analysis>[\s\S]*$/gi, '')
+    .trim();
+};
+
 const normalizeTranslationText = (original: string, translated: string): string => {
   const leading = original.match(/^\s+/)?.[0] ?? '';
   const trailing = original.match(/\s+$/)?.[0] ?? '';
@@ -361,10 +370,11 @@ const ContentApp: React.FC = () => {
           });
 
           if (response.success && response.data) {
-            if (!response.data.translatedText || !response.data.translatedText.trim()) {
+            const cleaned = stripThoughtBlocks(response.data.translatedText ?? '');
+            if (!cleaned.trim()) {
               throw new Error('Empty translation result');
             }
-            applyTranslatedPart(part, response.data.translatedText);
+            applyTranslatedPart(part, cleaned);
           } else {
             markPartError(part, response.error);
             throw new Error(response.error || 'Translation failed');
@@ -413,12 +423,13 @@ const ContentApp: React.FC = () => {
           throw new Error(response.error || 'Translation failed');
         }
 
-        if (!response.data.translatedText || !response.data.translatedText.trim()) {
+        const cleaned = stripThoughtBlocks(response.data.translatedText ?? '');
+        if (!cleaned.trim()) {
           batch.forEach(part => markPartError(part, 'Empty translation result'));
           throw new Error('Empty translation result');
         }
 
-        const segments = splitMultiTranslation(response.data.translatedText);
+        const segments = splitMultiTranslation(cleaned);
         const hasEmptySegment = segments.some(segment => !segment);
         if (segments.length !== batch.length || hasEmptySegment) {
           logger.translation('Batch segment mismatch', { expected: batch.length, actual: segments.length });
