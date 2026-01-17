@@ -15,3 +15,25 @@ export async function sha256(message: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+export const normalizeKey = (key: string): string => {
+  if (key === ' ') return 'Space';
+  if (key === 'Control') return 'Ctrl';
+  if (key === 'ArrowUp') return 'Up';
+  if (key === 'ArrowDown') return 'Down';
+  if (key === 'ArrowLeft') return 'Left';
+  if (key === 'ArrowRight') return 'Right';
+  if (key.length === 1) return key.toUpperCase();
+  return key;
+};
+
+export const sortKeys = (keys: string[]): string[] => {
+  const modifiers = ['Ctrl', 'Alt', 'Shift', 'Meta', 'Cmd'];
+  return keys.sort((a, b) => {
+    const aIsMod = modifiers.includes(a);
+    const bIsMod = modifiers.includes(b);
+    if (aIsMod && !bIsMod) return -1;
+    if (!aIsMod && bIsMod) return 1;
+    return a.localeCompare(b);
+  });
+};

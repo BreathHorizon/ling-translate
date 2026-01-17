@@ -6,7 +6,8 @@ import { AutoTranslateConfig } from './components/AutoTranslateConfig';
 import { About } from './components/About';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
-import { Download, Upload, Terminal, AlertTriangle } from 'lucide-react';
+import { normalizeKey, sortKeys } from '@/lib/utils';
+import { Download, Upload, Terminal, AlertTriangle, Trash2, Keyboard } from 'lucide-react';
 
 const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
@@ -104,6 +105,146 @@ const Options: React.FC = () => {
                       <span className="capitalize text-sm text-gray-700 font-medium">{style}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+
+              {/* Visibility Settings */}
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold mb-4">Button Visibility</h2>
+                <div className="space-y-6">
+                   <label className="flex items-center gap-3 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={!settings.hideGlobalButton}
+                        onChange={(e) => updateSettings({ hideGlobalButton: !e.target.checked })}
+                      />
+                      Show floating translation button
+                   </label>
+                   
+                   <div>
+                     <h3 className="text-sm font-medium text-gray-700 mb-2">Hidden Websites</h3>
+                     <p className="text-xs text-gray-500 mb-3">The floating button is hidden on these websites.</p>
+                     
+                     {(!settings.hideDomains || settings.hideDomains.length === 0) ? (
+                        <p className="text-sm text-gray-400 italic">No hidden websites.</p>
+                     ) : (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                           {settings.hideDomains.map((domain) => (
+                             <div key={domain} className="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
+                                <span className="text-sm text-gray-600">{domain}</span>
+                                <button 
+                                  onClick={() => updateSettings({ 
+                                    hideDomains: settings.hideDomains?.filter(d => d !== domain) 
+                                  })}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                             </div>
+                           ))}
+                        </div>
+                     )}
+                   </div>
+                </div>
+              </div>
+
+              {/* Shortcut Settings */}
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                   <Keyboard className="w-5 h-5 text-gray-700" />
+                   Keyboard Shortcuts
+                </h2>
+                <div className="space-y-4">
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                         Toggle Translation
+                      </label>
+                      <div className="flex gap-2">
+                         <input
+                           type="text"
+                           readOnly
+                           value={settings.shortcuts?.translate || 'Alt+A'}
+                           className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary text-sm bg-gray-50 cursor-pointer"
+                           placeholder="Click to record shortcut..."
+                           onClick={(e) => {
+                               const input = e.currentTarget;
+                               input.value = 'Press keys...';
+                               input.classList.add('animate-pulse', 'border-primary');
+                               
+                               const pressedKeys = new Set<string>();
+
+                               const handleKeyDown = (ev: KeyboardEvent) => {
+                                   ev.preventDefault();
+                                   ev.stopPropagation();
+                                   
+                                   const normalized = normalizeKey(ev.key);
+                                   pressedKeys.add(normalized);
+                                   
+                                   const keys = sortKeys(Array.from(pressedKeys));
+                                   input.value = keys.join('+');
+                               };
+                               
+                               const handleKeyUp = (ev: KeyboardEvent) => {
+                                   ev.preventDefault();
+                                   ev.stopPropagation();
+                                   
+                                   const normalized = normalizeKey(ev.key);
+                                   pressedKeys.delete(normalized);
+                                   
+                                   // If no keys left, we are done? Or do we keep recording?
+                                   // Actually, usually we commit on keyup if no keys are pressed?
+                                   // But we might want to capture "Ctrl+A" where A is released first.
+                                   // So we update the SETTING only on keydown (peak), or wait for user to finish?
+                                   // Let's stick to "live update input on keydown", and "commit on blur or stop".
+                                   // But the previous implementation used `once: true`.
+                                   // To support multi-key, we need a way to stop.
+                                   // Standard: Click away to stop recording.
+                               };
+
+                               // We need to commit the value when the user clicks away (blur)
+                               const handleBlur = () => {
+                                   const finalShortcut = input.value;
+                                   
+                                   // Simple conflict check
+                                   const reserved = ['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+S', 'Ctrl+P'];
+                                   if (reserved.includes(finalShortcut)) {
+                                       alert(`Shortcut "${finalShortcut}" is likely a system reserved key. Please choose another.`);
+                                       // Reset to old
+                                       input.value = settings.shortcuts?.translate || 'Alt+A';
+                                   } else if (finalShortcut && finalShortcut !== 'Press keys...') {
+                                       updateSettings({ 
+                                           shortcuts: { ...settings.shortcuts, translate: finalShortcut } 
+                                       });
+                                   } else {
+                                        input.value = settings.shortcuts?.translate || 'Alt+A';
+                                   }
+
+                                   input.classList.remove('animate-pulse', 'border-primary');
+                                   document.removeEventListener('keydown', handleKeyDown);
+                                   document.removeEventListener('keyup', handleKeyUp);
+                                   input.removeEventListener('blur', handleBlur);
+                               };
+                               
+                               document.addEventListener('keydown', handleKeyDown);
+                               document.addEventListener('keyup', handleKeyUp);
+                               input.addEventListener('blur', handleBlur);
+                           }}
+                         />
+                         <Button 
+                           variant="outline"
+                           onClick={() => updateSettings({ 
+                               shortcuts: { ...settings.shortcuts, translate: 'Alt+A' } 
+                           })}
+                         >
+                           Reset
+                         </Button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click the input box and press your desired key combination. Default is Alt+A.
+                      </p>
+                   </div>
                 </div>
               </div>
 

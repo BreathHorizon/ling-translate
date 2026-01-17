@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { normalizeKey, sortKeys } from '@/lib/utils';
 import { Languages, Settings, Loader2, X, Terminal, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils'
+import { PageCache } from '@/lib/pageCache';
 import { TranslationRequest, TranslationResponse, UserSettings } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 import { logger } from '@/lib/logger';
@@ -295,11 +297,12 @@ const ContentApp: React.FC = () => {
   const autoTranslateTriggered = useRef(false);
 
   useEffect(() => {
-    const init = async () => {
-      await loadSettings();
-      injectStyles();
-    };
-    init();
+      const init = async () => {
+        await loadSettings();
+        injectStyles();
+        PageCache.init();
+      };
+      init();
     return () => {
       observerRef.current?.disconnect();
     };
@@ -411,6 +414,21 @@ const ContentApp: React.FC = () => {
         if (item.runId !== translationRunIdRef.current) return;
         part.status = 'translating';
         const originalText = part.originalText;
+        
+        // Check cache first
+        const cached = await PageCache.get(
+            originalText, 
+            sourceLanguage, 
+            targetLanguage, 
+            currentSettings.defaultModelId
+        );
+
+        if (cached) {
+            logger.info('Cache hit for:', originalText.substring(0, 20) + '...');
+            applyTranslatedPart(part, cached);
+            return;
+        }
+
         logger.translation(`Translating part (${sourceLanguage} -> ${targetLanguage}):`, originalText.substring(0, 30) + '...');
 
         const request: TranslationRequest = {
@@ -439,6 +457,14 @@ const ContentApp: React.FC = () => {
             if (!cleaned.trim()) {
               throw new Error('Empty translation result');
             }
+            // Save to cache
+            await PageCache.set(
+                originalText,
+                sourceLanguage,
+                targetLanguage,
+                currentSettings.defaultModelId,
+                cleaned
+            );
             applyTranslatedPart(part, cleaned);
           } else {
             markPartError(part, response.error);
@@ -453,16 +479,39 @@ const ContentApp: React.FC = () => {
 
       const translateBatch = async (batch: TranslationPart[]) => {
         if (item.runId !== translationRunIdRef.current) return;
-        if (batch.length === 1) {
-          await translateSinglePart(batch[0]);
+        
+        // Optimize batch: Check cache for all parts
+        const uncachedParts: TranslationPart[] = [];
+        
+        for (const part of batch) {
+            const cached = await PageCache.get(
+                part.originalText, 
+                sourceLanguage, 
+                targetLanguage, 
+                currentSettings.defaultModelId
+            );
+            if (cached) {
+                part.status = 'translating'; // Temporarily set to translating to pass checks
+                applyTranslatedPart(part, cached);
+            } else {
+                uncachedParts.push(part);
+            }
+        }
+
+        // If all parts were cached, we are done
+        if (uncachedParts.length === 0) return;
+
+        // Only process uncached parts
+        if (uncachedParts.length === 1) {
+          await translateSinglePart(uncachedParts[0]);
           return;
         }
 
-        batch.forEach(part => {
+        uncachedParts.forEach(part => {
           part.status = 'translating';
         });
 
-        const combinedText = batch.map(part => part.originalText).join(MULTI_SEPARATOR);
+        const combinedText = uncachedParts.map(part => part.originalText).join(MULTI_SEPARATOR);
         logger.translation(`Translating batch (${sourceLanguage} -> ${targetLanguage}):`, combinedText.substring(0, 30) + '...');
 
         const request: TranslationRequest = {
@@ -486,26 +535,35 @@ const ContentApp: React.FC = () => {
 
         if (item.runId !== translationRunIdRef.current) return;
         if (!response.success || !response.data) {
-          batch.forEach(part => markPartError(part, response.error));
+          uncachedParts.forEach(part => markPartError(part, response.error));
           throw new Error(response.error || 'Translation failed');
         }
 
         const cleaned = stripThoughtBlocks(response.data.translatedText ?? '');
         if (!cleaned.trim()) {
-          batch.forEach(part => markPartError(part, 'Empty translation result'));
+          uncachedParts.forEach(part => markPartError(part, 'Empty translation result'));
           throw new Error('Empty translation result');
         }
 
         const segments = splitMultiTranslation(cleaned);
         const hasEmptySegment = segments.some(segment => !segment);
-        if (segments.length !== batch.length || hasEmptySegment) {
-          logger.translation('Batch segment mismatch', { expected: batch.length, actual: segments.length });
-          await Promise.all(batch.map(part => translateSinglePart(part)));
+        if (segments.length !== uncachedParts.length || hasEmptySegment) {
+          logger.translation('Batch segment mismatch', { expected: uncachedParts.length, actual: segments.length });
+          await Promise.all(uncachedParts.map(part => translateSinglePart(part)));
           return;
         }
 
-        segments.forEach((segment, index) => {
-          applyTranslatedPart(batch[index], segment);
+        segments.forEach(async (segment, index) => {
+          const part = uncachedParts[index];
+          // Cache each segment
+          await PageCache.set(
+            part.originalText,
+            sourceLanguage,
+            targetLanguage,
+            currentSettings.defaultModelId,
+            segment
+          );
+          applyTranslatedPart(part, segment);
         });
       };
 
@@ -1037,7 +1095,61 @@ const ContentApp: React.FC = () => {
     updateSettings({ autoTranslateDomains: newDomains });
   };
 
+  // Keyboard Shortcut Listener
+  useEffect(() => {
+    const pressedKeys = new Set<string>();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+        // Track pressed keys
+        const normalized = normalizeKey(e.key);
+        pressedKeys.add(normalized);
+        
+        // Construct current combination
+        const currentCombo = sortKeys(Array.from(pressedKeys)).join('+');
+        
+        // Target shortcut
+        const targetShortcut = settings.shortcuts?.translate || 'Alt+A';
+        // Normalize target as well (ensure sorted)
+        const targetParts = targetShortcut.split('+');
+        const normalizedTarget = sortKeys(targetParts).join('+');
+
+        if (currentCombo === normalizedTarget) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Toggle Logic
+            if (isTranslationEnabled) {
+                cancelTranslation();
+            } else {
+                handleTranslate();
+            }
+        }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+        const normalized = normalizeKey(e.key);
+        pressedKeys.delete(normalized);
+    };
+    
+    // Clear on blur to prevent stuck keys
+    const handleBlur = () => {
+        pressedKeys.clear();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    window.addEventListener('blur', handleBlur);
+    
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown, { capture: true });
+        window.removeEventListener('keyup', handleKeyUp, { capture: true });
+        window.removeEventListener('blur', handleBlur);
+    };
+  }, [settings.shortcuts, isTranslationEnabled, handleTranslate, cancelTranslation]);
+
   if (isHidden) return null;
+  if (settings.hideGlobalButton) return null;
+  if (settings.hideDomains?.includes(window.location.hostname)) return null;
 
   return (
     <div 
@@ -1128,6 +1240,34 @@ const ContentApp: React.FC = () => {
               >
                 <EyeOff className="w-4 h-4" />
                 Temporarily Hide
+              </button>
+              
+              <button
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium w-full p-2 rounded-lg transition-colors text-left",
+                  settingsPanelIsDark ? "text-gray-100 bg-white/5 hover:bg-white/10" : "text-gray-700 bg-black/5 hover:bg-black/10"
+                )}
+                onClick={() => {
+                    const hostname = window.location.hostname;
+                    const current = settings.hideDomains || [];
+                    if (!current.includes(hostname)) {
+                        updateSettings({ hideDomains: [...current, hostname] });
+                    }
+                }}
+              >
+                <EyeOff className="w-4 h-4" />
+                Hide on this site
+              </button>
+
+              <button
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium w-full p-2 rounded-lg transition-colors text-left",
+                  settingsPanelIsDark ? "text-gray-100 bg-white/5 hover:bg-white/10" : "text-gray-700 bg-black/5 hover:bg-black/10"
+                )}
+                onClick={() => updateSettings({ hideGlobalButton: true })}
+              >
+                <EyeOff className="w-4 h-4" />
+                Permanently Hide
               </button>
 
               <button 

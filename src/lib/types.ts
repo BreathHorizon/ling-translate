@@ -51,6 +51,11 @@ export interface UserSettings {
   theme: ThemeSettings;
   apiConfigs: ApiConfig[];
   loadingStyle: 'spinner' | 'ellipsis' | 'both' | 'none';
+  hideGlobalButton?: boolean;
+  hideDomains?: string[];
+  shortcuts?: {
+    translate: string; // e.g., "Alt+A"
+  };
   // Deprecated: showLoadingIcon (migrated to loadingStyle)
   developer: DeveloperSettings;
 }
@@ -108,6 +113,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   apiConfigs: [],
   loadingStyle: 'both',
+  hideGlobalButton: false,
+  hideDomains: [],
+  shortcuts: {
+    translate: 'Alt+A'
+  },
   developer: {
     enabled: false,
     logDom: false,

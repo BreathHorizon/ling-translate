@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Ling Translate",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "A Chrome extension for web translation with customizable AI models.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "commands"
   ],
   "host_permissions": [
     "<all_urls>"
