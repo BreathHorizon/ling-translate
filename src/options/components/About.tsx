@@ -1,11 +1,11 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Github, Globe } from 'lucide-react';
+import { Github } from 'lucide-react';
 import manifest from '../../manifest.json';
 
 export const About: React.FC = () => {
   const version = manifest.version;
-  const build = 18;
+  const build = 19;
 
   return (
     <div className="space-y-6">

@@ -18,7 +18,7 @@ export const ModelConfig: React.FC = () => {
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     title: string;
-    content: any;
+    content: unknown;
   }>({ isOpen: false, title: '', content: null });
 
   const handleEditModel = (apiId: string, model: IModelConfig) => {
@@ -26,6 +26,7 @@ export const ModelConfig: React.FC = () => {
     setEditingModelId(model.id);
     setFormData({
       ...model,
+      temperature: model.temperature ?? 0.3,
       concurrency: model.concurrency ?? 4,
       requestsPerSecond: model.requestsPerSecond ?? model.concurrency ?? 12
     });
@@ -38,6 +39,7 @@ export const ModelConfig: React.FC = () => {
       name: 'deepseek-v3.2',
       maxTokens: 2000,
       maxParagraphs: 5,
+      temperature: 0.3,
       concurrency: 4,
       requestsPerSecond: 12,
       systemPrompt: '你是一位专业的 {{to}} 母语翻译者，需要流畅地将文本翻译成 {{to}}。\n\n## 翻译规则\n1. 仅输出翻译内容，不要包含解释或其他额外内容\n2. 返回的翻译必须保持与原文完全相同的段落数和格式\n3. 如果文本包含 HTML 标签，在保持流畅性的同时，请考虑标签在翻译中的位置\n4. 对于不应翻译的内容（如专有名词、代码等），请保留原文\n5. 直接输出翻译（无分隔符，无额外文本）',
@@ -84,6 +86,11 @@ export const ModelConfig: React.FC = () => {
 
     const normalizedFormData: IModelConfig = {
       ...(formData as IModelConfig),
+      temperature: (() => {
+        const temp = typeof formData.temperature === 'number' ? formData.temperature : Number(formData.temperature);
+        const normalized = Number.isFinite(temp) ? temp : 0.3;
+        return Math.min(2, Math.max(0, normalized));
+      })(),
       concurrency: Math.max(1, Number(formData.concurrency) || 1),
       requestsPerSecond: Math.max(1, Number(formData.requestsPerSecond) || Number(formData.concurrency) || 1)
     };
@@ -138,6 +145,20 @@ export const ModelConfig: React.FC = () => {
                 type="number"
                 value={formData.maxParagraphs || 0}
                 onChange={(e) => setFormData({ ...formData, maxParagraphs: parseInt(e.target.value) })}
+              />
+              <Input
+                label="Temperature"
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={formData.temperature ?? 0.3}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    temperature: e.target.value === '' ? undefined : parseFloat(e.target.value)
+                  })
+                }
               />
               <Input
                 label="Concurrency (Threads)"
@@ -253,7 +274,7 @@ export const ModelConfig: React.FC = () => {
                     <div>
                       <h4 className="font-bold">{model.name}</h4>
                       <p className="text-xs text-gray-500">
-                        Max Tokens: {model.maxTokens} | Max Paragraphs: {model.maxParagraphs} | Concurrency: {model.concurrency ?? 4} | Req/sec: {model.requestsPerSecond ?? model.concurrency ?? 12}
+                        Max Tokens: {model.maxTokens} | Max Paragraphs: {model.maxParagraphs} | Temperature: {model.temperature ?? 0.3} | Concurrency: {model.concurrency ?? 4} | Req/sec: {model.requestsPerSecond ?? model.concurrency ?? 12}
                       </p>
                     </div>
                     <div className="flex gap-2">

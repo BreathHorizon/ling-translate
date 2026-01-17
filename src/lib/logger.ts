@@ -7,25 +7,25 @@ class Logger {
     this.settings = settings;
   }
 
-  dom(...args: any[]) {
+  dom(...args: unknown[]) {
     if (this.settings?.enabled && this.settings?.logDom) {
       console.log('%c[DOM]', 'color: #2563eb; font-weight: bold;', ...args);
     }
   }
 
-  translation(...args: any[]) {
+  translation(...args: unknown[]) {
     if (this.settings?.enabled && this.settings?.logTranslation) {
       console.log('%c[Translation]', 'color: #16a34a; font-weight: bold;', ...args);
     }
   }
 
-  network(...args: any[]) {
+  network(...args: unknown[]) {
     if (this.settings?.enabled && this.settings?.logNetwork) {
       console.log('%c[Network]', 'color: #dc2626; font-weight: bold;', ...args);
     }
   }
 
-  info(...args: any[]) {
+  info(...args: unknown[]) {
     if (this.settings?.enabled) {
       console.log('%c[Info]', 'color: #6b7280; font-weight: bold;', ...args);
     }

@@ -18,7 +18,7 @@ export const ApiConfig: React.FC = () => {
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     title: string;
-    content: any;
+    content: unknown;
   }>({ isOpen: false, title: '', content: null });
 
   const handleEdit = (api: IApiConfig) => {

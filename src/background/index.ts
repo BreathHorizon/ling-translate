@@ -101,6 +101,12 @@ const getErrorMessage = (error: unknown): string => {
   return 'Unknown error';
 };
 
+const normalizeTemperature = (temperature: unknown): number => {
+  const numeric = typeof temperature === 'number' ? temperature : Number(temperature);
+  const normalized = Number.isFinite(numeric) ? numeric : 0.3;
+  return Math.min(2, Math.max(0, normalized));
+};
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Chrome Translator Extension installed');
 });
@@ -123,7 +129,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   }
 });
 
-async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ success: boolean; data?: any; error?: string }> {
+async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     const settings = await getSettings();
     const apiConfig = settings.apiConfigs.find(api => api.id === apiId);
@@ -150,7 +156,7 @@ async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ suc
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.3,
+        temperature: normalizeTemperature(modelConfig.temperature),
         max_tokens: 500
       })
     });
@@ -171,7 +177,7 @@ async function testModel(apiId: string, modelConfig: ModelConfig): Promise<{ suc
   }
 }
 
-async function testConnection(baseUrl: string, apiKey: string): Promise<{ success: boolean; data?: any; error?: string }> {
+async function testConnection(baseUrl: string, apiKey: string): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     const cleanUrl = baseUrl.replace(/\/$/, '');
     
@@ -273,7 +279,7 @@ async function callOpenAI(
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    temperature: 0.3
+    temperature: normalizeTemperature(model.temperature)
   };
 
   if (Number.isFinite(model.maxTokens) && model.maxTokens > 0) {

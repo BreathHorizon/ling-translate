@@ -3,6 +3,7 @@ export interface ModelConfig {
   name: string;
   maxTokens: number;
   maxParagraphs: number;
+  temperature?: number;
   concurrency?: number;
   requestsPerSecond?: number;
   systemPrompt: string;
