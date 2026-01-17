@@ -5,7 +5,11 @@ import manifest from '../../manifest.json';
 
 export const About: React.FC = () => {
   const version = manifest.version;
+<<<<<<< Updated upstream
   const build = 18;
+=======
+  const build = 16;
+>>>>>>> Stashed changes
 
   return (
     <div className="space-y-6">
