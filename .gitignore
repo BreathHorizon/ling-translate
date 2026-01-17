@@ -30,4 +30,6 @@ dist-ssr/
 # Vite
 .vite/
 
-.trae
+.trae/
+dist.crx
+release/
