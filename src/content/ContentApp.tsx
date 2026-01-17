@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Languages, Settings, Loader2, X, AlertCircle, RefreshCw, Terminal } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Languages, Settings, Loader2, X, Terminal } from 'lucide-react';
+import { cn } from '@/lib/utils'
 import { TranslationRequest, TranslationResponse } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 import { logger } from '@/lib/logger';
 
-const MIN_LOADING_MS = 300; // Increased slightly for better visual stability
-const SCROLL_THROTTLE_MS = 300;
 const MAX_RETRIES = 3;
 
 interface TranslationItem {
@@ -23,26 +21,46 @@ interface TranslationItem {
   isVisible: boolean;
 }
 
-// Custom SVG Spinner to match requirements (16x16)
-// Removed spinner logic as per new requirements
+// CSS-based loading indicator to avoid modifying DOM textContent
+let stylesInjected = false;
 
-// Inject styles for spinner animation and badge
 const injectStyles = () => {
+  if (stylesInjected) return;
+  stylesInjected = true;
+
   const styleId = 'ling-translate-styles';
   if (document.getElementById(styleId)) return;
 
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
+    .ling-translate-loading {
+      position: relative;
+      display: inline-block;
+    }
+    .ling-translate-loading::after {
+      content: '';
+      position: absolute;
+      right: -14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      border: 2px solid #3b82f6;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: ling-translate-spin 0.8s linear infinite;
+    }
+    @keyframes ling-translate-spin {
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
     .ling-translate-error {
       color: #ef4444;
-      cursor: help;
+      border-bottom: 1px dotted #ef4444;
     }
   `;
-  (document.head || document.documentElement).appendChild(style);
+  document.head.appendChild(style);
 };
-
-// attachLoadingBadge removed
 
 const getAllTranslatableGroups = () => {
   const walker = document.createTreeWalker(
@@ -180,15 +198,15 @@ const ContentApp: React.FC = () => {
 
     item.status = 'translating';
     logger.dom('Processing item:', item.id, item.element);
-    
+
+    // Use CSS class for loading state instead of modifying textContent
     if (currentSettings.showLoadingIcon) {
-        // Apply "..." suffix to all parts to indicate loading
         item.parts.forEach(part => {
-           if (part.status === 'pending') {
-               part.node.textContent = part.originalText + '...';
+           if (part.status === 'pending' && part.node.parentElement) {
+               part.node.parentElement.classList.add('ling-translate-loading');
            }
         });
-        logger.dom('Applied loading suffix for item:', item.id);
+        logger.dom('Applied loading indicator for item:', item.id);
     }
 
     const loadingStart = Date.now();
@@ -240,12 +258,24 @@ const ContentApp: React.FC = () => {
                  if (response.success && response.data) {
                     part.translatedText = response.data.translatedText;
                     part.status = 'success';
-                    
-                    // Update DOM immediately
+
+                    // Remove loading indicator
+                    if (part.node.parentElement) {
+                        part.node.parentElement.classList.remove('ling-translate-loading');
+                    }
+
+                    // Update DOM with translated text
                     logger.dom('Updating text node:', part.node);
-                    part.node.textContent = response.data.translatedText;
+                    if (part.node.textContent !== response.data.translatedText) {
+                        part.node.textContent = response.data.translatedText;
+                    }
                  } else {
                     part.status = 'error';
+                    // Remove loading and add error styling
+                    if (part.node.parentElement) {
+                        part.node.parentElement.classList.remove('ling-translate-loading');
+                        part.node.parentElement.classList.add('ling-translate-error');
+                    }
                     logger.translation('Part failed:', response.error);
                  }
              } catch (err) {
@@ -260,9 +290,14 @@ const ContentApp: React.FC = () => {
         
         if (allSuccess) {
            item.status = 'success';
+           // Clean up all loading indicators
+           item.parts.forEach(part => {
+               if (part.node.parentElement) {
+                   part.node.parentElement.classList.remove('ling-translate-loading');
+               }
+           });
            item.element.setAttribute('data-translated', 'true');
            item.element.setAttribute('data-translated-lang', targetLanguage);
-           // We can't set title easily for multiple parts, maybe just set "Translated"
            item.element.setAttribute('title', 'Translated');
         } else if (anyError) {
            throw new Error('Some parts failed to translate');
@@ -273,13 +308,30 @@ const ContentApp: React.FC = () => {
       item.retryCount++;
       if (item.retryCount < MAX_RETRIES) {
         item.status = 'pending'; // Reset to pending to retry
+        // Restore original text and clean up classes before retry
+        item.parts.forEach(part => {
+            if (part.status === 'error') {
+                part.status = 'pending';
+                if (part.node.parentElement) {
+                    part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
+                }
+                if (part.node.textContent !== part.originalText) {
+                    part.node.textContent = part.originalText;
+                }
+            }
+        });
         logger.info(`Retrying translation for item ${item.id} (Attempt ${item.retryCount + 1}/${MAX_RETRIES})`);
-        setTimeout(() => processTranslation(item), 1000 * item.retryCount);
+        setTimeout(() => processTranslation(item), 1000 * Math.min(item.retryCount, 5));
       } else {
         item.status = 'error';
-        // Reset text content on error
+        // Reset text content and clean up CSS classes on error
         item.parts.forEach(part => {
-             part.node.textContent = part.originalText;
+             if (part.node.parentElement) {
+                 part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
+             }
+             if (part.node.textContent !== part.originalText) {
+                 part.node.textContent = part.originalText;
+             }
         });
         logger.info(`Translation failed permanently for item ${item.id}`);
       }
@@ -345,17 +397,16 @@ const ContentApp: React.FC = () => {
 
     translationItemsRef.current = itemsMap;
 
-    // 2. Setup IntersectionObserver
-    // Root margin 200px to pre-load content just outside viewport
+    // 2. Setup IntersectionObserver with improved configuration
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         const item = itemsMap.get(entry.target as HTMLElement);
         if (!item) return;
 
         if (entry.isIntersecting) {
-            item.isVisible = true;
-            // If pending, trigger translation
+            // Only trigger if not already processing or completed
             if (item.status === 'pending') {
+                item.isVisible = true;
                 processTranslation(item);
             }
         } else {
@@ -363,15 +414,23 @@ const ContentApp: React.FC = () => {
         }
       });
     }, {
-        rootMargin: '200px',
-        threshold: 0.1
+        rootMargin: '300px',
+        threshold: 0.01
     });
 
     observerRef.current = observer;
 
-    // 3. Start observing
+    // 3. Immediately translate visible elements (above the fold)
     itemsMap.forEach((item) => {
-        observer.observe(item.element);
+        const rect = item.element.getBoundingClientRect();
+        const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
+        if (isInViewport) {
+            if (item.status === 'pending') {
+                processTranslation(item);
+            }
+        } else {
+            observer.observe(item.element);
+        }
     });
 
     // Note: We don't set isTranslating to false immediately because the process is continuous (scroll-based).
