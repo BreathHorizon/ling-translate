@@ -5,7 +5,7 @@ import manifest from '../../manifest.json';
 
 export const About: React.FC = () => {
   const version = manifest.version;
-  const build = 25;
+  const build = 26;
 
   return (
     <div className="space-y-6">

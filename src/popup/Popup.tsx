@@ -1,14 +1,32 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Settings, ExternalLink, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 const Popup: React.FC = () => {
   const { settings, loadSettings, updateSettings } = useStore();
+  const [activeHostname, setActiveHostname] = useState<string | null>(null);
   
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      const url = tab?.url;
+      if (!url) {
+        setActiveHostname(null);
+        return;
+      }
+      try {
+        const hostname = new URL(url).hostname;
+        setActiveHostname(hostname || null);
+      } catch {
+        setActiveHostname(null);
+      }
+    });
+  }, []);
 
   const supportedLanguages = [
     { code: 'zh-CN', name: 'Chinese (Simplified)' },
@@ -20,12 +38,28 @@ const Popup: React.FC = () => {
     { code: 'es', name: 'Spanish' },
   ];
 
-  const availableModels = settings.apiConfigs.flatMap(api => 
-    api.models.map(model => ({
-      id: `${api.id}:${model.id}`,
-      name: `${model.name} (${api.name})`
-    }))
-  );
+  const availableModels = useMemo(() => {
+    return settings.apiConfigs.flatMap((api) =>
+      api.models.map((model) => ({
+        id: `${api.id}:${model.id}`,
+        name: `${model.name} (${api.name})`,
+      }))
+    );
+  }, [settings.apiConfigs]);
+
+  const isAutoTranslateEnabled = useMemo(() => {
+    if (!activeHostname) return false;
+    return (settings.autoTranslateDomains || []).includes(activeHostname);
+  }, [activeHostname, settings.autoTranslateDomains]);
+
+  const toggleAutoTranslate = () => {
+    if (!activeHostname) return;
+    const currentDomains = settings.autoTranslateDomains || [];
+    const nextDomains = currentDomains.includes(activeHostname)
+      ? currentDomains.filter((d) => d !== activeHostname)
+      : [...currentDomains, activeHostname];
+    updateSettings({ autoTranslateDomains: nextDomains });
+  };
 
   return (
     <div className="w-80 bg-white dark:bg-gray-800 min-h-[350px] flex flex-col">
@@ -43,6 +77,22 @@ const Popup: React.FC = () => {
       </div>
 
       <div className="p-4 space-y-4 flex-1">
+        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer p-2 rounded-lg transition-colors bg-gray-50 dark:bg-gray-700/40">
+          <input
+            type="checkbox"
+            className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4"
+            checked={isAutoTranslateEnabled}
+            onChange={toggleAutoTranslate}
+            disabled={!activeHostname}
+          />
+          <div className="flex-1">
+            <div className="text-gray-800 dark:text-gray-100">Auto-translate this site</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {activeHostname ? activeHostname : 'Current page is not supported'}
+            </div>
+          </div>
+        </label>
+
         <div>
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Target Language</label>
           <select 
@@ -75,6 +125,69 @@ const Popup: React.FC = () => {
             Please configure an API and Model in settings first.
           </div>
         )}
+
+        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between py-2">
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">Developer Mode</div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={settings.developer?.enabled ?? false}
+                onChange={(e) =>
+                  updateSettings({
+                    developer: { ...settings.developer, enabled: e.target.checked },
+                  })
+                }
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          {settings.developer?.enabled && (
+            <div className="space-y-2 pb-2">
+              <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  checked={settings.developer?.logDom ?? false}
+                  onChange={(e) =>
+                    updateSettings({
+                      developer: { ...settings.developer, logDom: e.target.checked },
+                    })
+                  }
+                />
+                Log DOM Operations
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  checked={settings.developer?.logTranslation ?? false}
+                  onChange={(e) =>
+                    updateSettings({
+                      developer: { ...settings.developer, logTranslation: e.target.checked },
+                    })
+                  }
+                />
+                Log Translation Content
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  checked={settings.developer?.logNetwork ?? false}
+                  onChange={(e) =>
+                    updateSettings({
+                      developer: { ...settings.developer, logNetwork: e.target.checked },
+                    })
+                  }
+                />
+                Log Network Requests
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="p-4 border-t bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
