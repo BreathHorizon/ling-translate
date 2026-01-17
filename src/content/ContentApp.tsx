@@ -578,7 +578,7 @@ const ContentApp: React.FC = () => {
     >
       {/* Quick Settings Menu */}
       {showMenu && (
-        <div className="absolute top-0 right-10 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-right-2 z-50 text-left">
+        <div className="absolute top-0 right-14 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-right-2 z-50 text-left">
            <div className="flex justify-between items-center mb-4">
              <h3 className="font-bold text-gray-800 dark:text-white">Quick Settings</h3>
              <button onClick={() => setShowMenu(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -700,16 +700,16 @@ const ContentApp: React.FC = () => {
         onClick={handleTranslate}
         disabled={isTranslating}
         className={cn(
-          "w-8 h-8 rounded-l-lg shadow-xl flex items-center justify-center transition-all duration-300 z-50",
-          "bg-primary text-white hover:bg-primary-dark hover:w-10 active:scale-95",
+          "w-10 h-10 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-50 mr-1",
+          "bg-primary text-white hover:bg-primary-dark active:scale-95",
           "dark:bg-primary-dark dark:text-gray-100",
           isTranslating && "cursor-wait opacity-80"
         )}
       >
         {isTranslating ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
-          <Languages className="w-4 h-4" />
+          <Languages className="w-5 h-5" />
         )}
       </button>
     </div>
