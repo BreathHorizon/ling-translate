@@ -6,7 +6,11 @@ import manifest from '../../manifest.json';
 export const About: React.FC = () => {
   const version = manifest.version;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   const build = 18;
+=======
+  const build = 16;
+>>>>>>> Stashed changes
 =======
   const build = 16;
 >>>>>>> Stashed changes
