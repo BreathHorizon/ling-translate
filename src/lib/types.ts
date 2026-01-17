@@ -46,6 +46,7 @@ export interface UserSettings {
   defaultFromLang: string;
   defaultToLang: string;
   defaultModelId: string; // Format: "apiId:modelId"
+  interfaceLanguage: string;
   sitePreferences: Record<string, SitePreference>;
   autoTranslateDomains: string[];
   theme: ThemeSettings;

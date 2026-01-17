@@ -103,8 +103,8 @@ const Options: React.FC = () => {
                         type="radio"
                         name="interfaceLanguage"
                         value={lang.value}
-                        checked={settings.interfaceLanguage === lang.value}
-                        onChange={() => updateSettings({ interfaceLanguage: lang.value })}
+                        checked={(settings as any).interfaceLanguage === lang.value}
+                        onChange={() => updateSettings({ ...(settings as any), interfaceLanguage: lang.value })}
                         className="text-primary focus:ring-primary w-4 h-4"
                       />
                       <span className="text-sm text-gray-700 font-medium">{lang.label}</span>
