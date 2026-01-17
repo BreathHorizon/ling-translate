@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import Popup from './Popup'
+import '../i18n/config'
 import '../index.css'
 
 const getInitialTheme = (): 'light' | 'dark' => {

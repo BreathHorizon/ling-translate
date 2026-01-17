@@ -1,0 +1,95 @@
+{
+  "sidebar": {
+    "general": "常规",
+    "theme": "主题",
+    "configuration": "配置",
+    "auto_translate": "自动翻译",
+    "prompts": "提示词",
+    "about": "关于",
+    "title": "Ling 翻译"
+  },
+  "settings": {
+    "general": {
+      "title": "常规设置",
+      "description": "欢迎使用 Ling 翻译！请配置您的 API 和模型以开始使用。",
+      "interface_language": "界面语言",
+      "loading_style": {
+        "title": "加载指示器样式",
+        "description": "选择翻译时加载指示器的显示方式。",
+        "spinner": "旋转图标",
+        "ellipsis": "省略号",
+        "both": "同时显示",
+        "none": "不显示"
+      },
+      "visibility": {
+        "title": "按钮可见性",
+        "show_floating_button": "显示悬浮翻译按钮",
+        "hidden_websites": "隐藏网站",
+        "hidden_websites_desc": "在这些网站上隐藏悬浮按钮。",
+        "no_hidden_websites": "没有隐藏的网站。"
+      },
+      "shortcuts": {
+        "title": "键盘快捷键",
+        "toggle_translation": "切换翻译",
+        "placeholder": "点击录制快捷键...",
+        "reset": "重置",
+        "instructions": "点击输入框并按下您想要的组合键。默认为 Alt+A。"
+      },
+      "config_management": {
+        "title": "配置管理",
+        "description": "导出设置到文件或从备份导入。",
+        "export": "导出设置",
+        "import": "导入设置"
+      },
+      "developer": {
+        "title": "开发者设置",
+        "description": "用于调试和开发的高级选项。",
+        "enable": "启用开发者模式",
+        "log_dom": "记录 DOM 操作",
+        "log_translation": "记录翻译内容",
+        "log_network": "记录网络请求"
+      },
+      "danger_zone": {
+        "title": "危险区域",
+        "description": "此处的操作会导致数据丢失且无法撤销。",
+        "clear_all": "清除所有设置"
+      }
+    }
+  },
+  "popup": {
+    "title": "Ling 翻译",
+    "auto_translate_site": "自动翻译此网站",
+    "not_supported": "当前页面不支持",
+    "target_language": "目标语言",
+    "model": "模型",
+    "select_model": "选择模型...",
+    "configure_api_first": "请先在设置中配置 API 和模型。",
+    "developer_mode": "开发者模式",
+    "log_dom": "记录 DOM 操作",
+    "log_translation": "记录翻译内容",
+    "log_network": "记录网络请求",
+    "full_settings": "完整设置"
+  },
+  "content": {
+    "quick_settings": "快捷设置",
+    "hide_temporarily": "暂时隐藏",
+    "hide_on_site": "在此网站隐藏",
+    "hide_permanently": "永久隐藏",
+    "more_settings": "更多设置",
+    "settings_title": "设置",
+    "translated_title": "已翻译",
+    "no_model_alert": "尚未选择翻译模型，是否立即配置？",
+    "extension_updated_alert": "扩展已更新或重新加载。请刷新页面以继续使用 Ling 翻译。"
+  },
+  "about": {
+    "title": "关于 Ling Translate",
+    "description": "Ling Translate 是一款强大的网页翻译 Chrome 扩展，支持自定义 AI 模型。你可以使用自己的 API 密钥和偏好的 AI 模型来翻译网页。",
+    "github_repo": "GitHub 仓库",
+    "github_desc": "查看源码、报告问题并参与贡献。",
+    "features": "功能",
+    "feature_1": "可自定义 AI API 配置（兼容 OpenAI）",
+    "feature_2": "支持多模型与自定义提示词",
+    "feature_3": "智能网页翻译",
+    "feature_4": "API 密钥安全地存储在本地"
+  }
+}

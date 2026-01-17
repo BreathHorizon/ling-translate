@@ -2,10 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Settings, ExternalLink, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useTranslation } from 'react-i18next';
+import { useLanguageSync } from '@/hooks/useLanguageSync';
 
 const Popup: React.FC = () => {
   const { settings, loadSettings, updateSettings } = useStore();
   const [activeHostname, setActiveHostname] = useState<string | null>(null);
+  const { t } = useTranslation();
+  useLanguageSync();
   
   useEffect(() => {
     loadSettings();
@@ -66,7 +70,7 @@ const Popup: React.FC = () => {
       <div className="p-4 border-b bg-primary text-white flex justify-between items-center">
         <h1 className="font-bold flex items-center gap-2">
           <Globe className="w-5 h-5" />
-          Ling 翻译
+          {t('popup.title')}
         </h1>
         <button 
           onClick={() => chrome.runtime.openOptionsPage()}
@@ -86,15 +90,15 @@ const Popup: React.FC = () => {
             disabled={!activeHostname}
           />
           <div className="flex-1">
-            <div className="text-gray-800 dark:text-gray-100">自动翻译此网站</div>
+            <div className="text-gray-800 dark:text-gray-100">{t('popup.auto_translate_site')}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              {activeHostname ? activeHostname : '当前页面不支持'}
+              {activeHostname ? activeHostname : t('popup.not_supported')}
             </div>
           </div>
         </label>
 
         <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">目标语言</label>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('popup.target_language')}</label>
           <select 
             className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
             value={settings.defaultToLang}
@@ -107,13 +111,13 @@ const Popup: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">模型</label>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('popup.model')}</label>
           <select 
             className="w-full border border-gray-200 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:outline-none"
             value={settings.defaultModelId}
             onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
           >
-            <option value="">选择模型...</option>
+            <option value="">{t('popup.select_model')}</option>
             {availableModels.map(model => (
               <option key={model.id} value={model.id}>{model.name}</option>
             ))}
@@ -122,13 +126,13 @@ const Popup: React.FC = () => {
 
         {availableModels.length === 0 && (
           <div className="text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md border border-yellow-200 dark:border-yellow-800">
-            请先在设置中配置 API 和模型。
+            {t('popup.configure_api_first')}
           </div>
         )}
 
         <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between py-2">
-            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">开发者模式</div>
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">{t('popup.developer_mode')}</div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -157,7 +161,7 @@ const Popup: React.FC = () => {
                     })
                   }
                 />
-                记录 DOM 操作
+                {t('popup.log_dom')}
               </label>
               <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 dark:text-gray-200">
                 <input
@@ -170,7 +174,7 @@ const Popup: React.FC = () => {
                     })
                   }
                 />
-                记录翻译内容
+                {t('popup.log_translation')}
               </label>
               <label className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 dark:text-gray-200">
                 <input
@@ -183,7 +187,7 @@ const Popup: React.FC = () => {
                     })
                   }
                 />
-                记录网络请求
+                {t('popup.log_network')}
               </label>
             </div>
           )}
@@ -193,7 +197,7 @@ const Popup: React.FC = () => {
       <div className="p-4 border-t bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
         <Button className="w-full" onClick={() => chrome.runtime.openOptionsPage()}>
           <ExternalLink className="w-4 h-4 mr-2" />
-          完整设置
+          {t('popup.full_settings')}
         </Button>
       </div>
     </div>

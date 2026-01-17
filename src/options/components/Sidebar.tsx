@@ -1,6 +1,7 @@
 import React from 'react';
 import { Settings, Server, Globe, Terminal, Info, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   activeTab: string;
@@ -8,13 +9,14 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
+  const { t } = useTranslation();
   const tabs = [
-    { id: 'general', label: 'General', icon: Settings },
-    { id: 'theme', label: 'Theme', icon: Palette },
-    { id: 'models', label: 'Configuration', icon: Server },
-    { id: 'auto_translate', label: 'Auto Translate', icon: Globe },
-    { id: 'prompts', label: 'Prompts', icon: Terminal },
-    { id: 'about', label: 'About', icon: Info },
+    { id: 'general', label: t('sidebar.general'), icon: Settings },
+    { id: 'theme', label: t('sidebar.theme'), icon: Palette },
+    { id: 'models', label: t('sidebar.configuration'), icon: Server },
+    { id: 'auto_translate', label: t('sidebar.auto_translate'), icon: Globe },
+    { id: 'prompts', label: t('sidebar.prompts'), icon: Terminal },
+    { id: 'about', label: t('sidebar.about'), icon: Info },
   ];
 
   return (
@@ -22,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       <div className="p-6">
         <h1 className="text-xl font-bold text-primary flex items-center gap-2">
           <Globe className="w-6 h-6" />
-          Ling Translate
+          {t('sidebar.title')}
         </h1>
       </div>
       <nav className="px-4 space-y-1">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import ContentApp from './ContentApp';
+import '../i18n/config';
 import styleText from '../index.css?inline';
 
 console.log('Content script loaded');

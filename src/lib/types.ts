@@ -100,6 +100,7 @@ export interface ExtensionStorage {
 export const DEFAULT_SETTINGS: UserSettings = {
   defaultFromLang: 'auto',
   defaultToLang: 'zh-CN',
+  interfaceLanguage: 'auto',
   defaultModelId: 'default-api:default-model',
   sitePreferences: {},
   autoTranslateDomains: [],

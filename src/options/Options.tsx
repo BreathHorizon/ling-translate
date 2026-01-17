@@ -8,11 +8,15 @@ import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/Button';
 import { normalizeKey, sortKeys } from '@/lib/utils';
 import { Download, Upload, Terminal, AlertTriangle, Trash2, Keyboard } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { useLanguageSync } from '@/hooks/useLanguageSync';
 
 const Options: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
   const { loadSettings, isLoading, settings, updateSettings, resetSettings } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
+  useLanguageSync();
 
   useEffect(() => {
     loadSettings();
@@ -80,37 +84,60 @@ const Options: React.FC = () => {
           {activeTab === 'general' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-2xl font-bold mb-4">General Settings</h2>
+                <h2 className="text-2xl font-bold mb-4">{t('settings.general.title')}</h2>
                 <p className="text-gray-500">
-                  Welcome to Ling Translate! Please configure your API and Models to get started.
+                  {t('settings.general.description')}
                 </p>
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Loading Indicator Style</h2>
-                <p className="text-gray-500 mb-4">
-                  Choose how the loading indicator appears next to text being translated.
-                </p>
+                <h2 className="text-xl font-bold mb-4">{t('settings.general.interface_language')}</h2>
                 <div className="flex flex-wrap gap-4">
-                  {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
-                    <label key={style} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+                  {[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'en', label: 'English' },
+                    { value: 'zh-CN', label: '简体中文' },
+                  ].map((lang) => (
+                    <label key={lang.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
                       <input
                         type="radio"
-                        name="loadingStyleGeneral"
-                        value={style}
-                        checked={settings.loadingStyle === style}
-                        onChange={() => updateSettings({ loadingStyle: style })}
+                        name="interfaceLanguage"
+                        value={lang.value}
+                        checked={settings.interfaceLanguage === lang.value}
+                        onChange={() => updateSettings({ interfaceLanguage: lang.value })}
                         className="text-primary focus:ring-primary w-4 h-4"
                       />
-                      <span className="capitalize text-sm text-gray-700 font-medium">{style}</span>
+                      <span className="text-sm text-gray-700 font-medium">{lang.label}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                  <h2 className="text-xl font-bold mb-4">{t('settings.general.loading_style.title')}</h2>
+                  <p className="text-gray-500 mb-4">
+                    {t('settings.general.loading_style.description')}
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
+                      <label key={style} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="loadingStyleGeneral"
+                          value={style}
+                          checked={settings.loadingStyle === style}
+                          onChange={() => updateSettings({ loadingStyle: style })}
+                          className="text-primary focus:ring-primary w-4 h-4"
+                        />
+                        <span className="capitalize text-sm text-gray-700 font-medium">{t(`settings.general.loading_style.${style}`)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
               {/* Visibility Settings */}
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Button Visibility</h2>
+                <h2 className="text-xl font-bold mb-4">{t('settings.general.visibility.title')}</h2>
                 <div className="space-y-6">
                    <label className="flex items-center gap-3 text-sm text-gray-700">
                       <input
@@ -119,15 +146,15 @@ const Options: React.FC = () => {
                         checked={!settings.hideGlobalButton}
                         onChange={(e) => updateSettings({ hideGlobalButton: !e.target.checked })}
                       />
-                      Show floating translation button
+                      {t('settings.general.visibility.show_floating_button')}
                    </label>
                    
                    <div>
-                     <h3 className="text-sm font-medium text-gray-700 mb-2">Hidden Websites</h3>
-                     <p className="text-xs text-gray-500 mb-3">The floating button is hidden on these websites.</p>
+                     <h3 className="text-sm font-medium text-gray-700 mb-2">{t('settings.general.visibility.hidden_websites')}</h3>
+                     <p className="text-xs text-gray-500 mb-3">{t('settings.general.visibility.hidden_websites_desc')}</p>
                      
                      {(!settings.hideDomains || settings.hideDomains.length === 0) ? (
-                        <p className="text-sm text-gray-400 italic">No hidden websites.</p>
+                        <p className="text-sm text-gray-400 italic">{t('settings.general.visibility.no_hidden_websites')}</p>
                      ) : (
                         <div className="space-y-2 max-h-40 overflow-y-auto">
                            {settings.hideDomains.map((domain) => (
@@ -233,17 +260,17 @@ const Options: React.FC = () => {
                            }}
                          />
                          <Button 
-                           variant="outline"
-                           onClick={() => updateSettings({ 
-                               shortcuts: { ...settings.shortcuts, translate: 'Alt+A' } 
-                           })}
-                         >
-                           Reset
-                         </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Click the input box and press your desired key combination. Default is Alt+A.
-                      </p>
+                             variant="outline"
+                             onClick={() => updateSettings({ 
+                                 shortcuts: { ...settings.shortcuts, translate: 'Alt+A' } 
+                             })}
+                           >
+                             {t('settings.general.shortcuts.reset')}
+                           </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {t('settings.general.shortcuts.instructions')}
+                        </p>
                    </div>
                 </div>
               </div>
@@ -275,10 +302,10 @@ const Options: React.FC = () => {
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                    <Terminal className="w-5 h-5 text-gray-700" />
-                   Developer Settings
+                   {t('settings.general.developer.title')}
                  </h2>
                  <p className="text-gray-500 mb-6">
-                   Advanced options for debugging and development.
+                   {t('settings.general.developer.description')}
                  </p>
                  
                  <div className="space-y-4">
@@ -291,7 +318,7 @@ const Options: React.FC = () => {
                           developer: { ...settings.developer, enabled: e.target.checked } 
                         })}
                       />
-                      Enable Developer Mode
+                      {t('settings.general.developer.enable')}
                    </label>
 
                    {(settings.developer?.enabled) && (
@@ -305,7 +332,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logDom: e.target.checked } 
                             })}
                           />
-                          Log DOM Operations
+                          {t('settings.general.developer.log_dom')}
                        </label>
                        <label className="flex items-center gap-3 text-sm text-gray-600">
                           <input
@@ -316,7 +343,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logTranslation: e.target.checked } 
                             })}
                           />
-                          Log Translation Content
+                          {t('settings.general.developer.log_translation')}
                        </label>
                        <label className="flex items-center gap-3 text-sm text-gray-600">
                           <input
@@ -327,7 +354,7 @@ const Options: React.FC = () => {
                               developer: { ...settings.developer, logNetwork: e.target.checked } 
                             })}
                           />
-                          Log Network Requests
+                          {t('settings.general.developer.log_network')}
                        </label>
                      </div>
                    )}
@@ -337,17 +364,17 @@ const Options: React.FC = () => {
               <div className="bg-white rounded-xl p-8 shadow-sm border border-red-200 bg-red-50/30">
                 <h2 className="text-xl font-bold mb-4 text-red-600 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5" />
-                  Danger Zone
+                  {t('settings.general.danger_zone.title')}
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  Actions here can cause data loss and cannot be undone.
+                  {t('settings.general.danger_zone.description')}
                 </p>
                 <Button 
                   onClick={handleResetSettings} 
                   variant="outline" 
                   className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
                 >
-                  Clear All Settings
+                  {t('settings.general.danger_zone.clear_all')}
                 </Button>
               </div>
             </div>

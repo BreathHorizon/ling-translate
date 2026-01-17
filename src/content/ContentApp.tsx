@@ -6,6 +6,8 @@ import { PageCache } from '@/lib/pageCache';
 import { TranslationRequest, TranslationResponse, UserSettings } from '@/lib/types';
 import { useStore } from '@/store/useStore';
 import { logger } from '@/lib/logger';
+import { useTranslation } from 'react-i18next';
+import { useLanguageSync } from '@/hooks/useLanguageSync';
 
 const MAX_RETRIES = 3;
 const MULTI_SEPARATOR = '\n\n%%\n\n';
@@ -252,6 +254,8 @@ const ContentApp: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const { settings, loadSettings, updateSettings } = useStore();
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { t } = useTranslation();
+  useLanguageSync();
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) {
@@ -703,7 +707,7 @@ const ContentApp: React.FC = () => {
     const currentSettings = useStore.getState().settings;
 
     if (!currentSettings.defaultModelId) {
-      if (confirm('尚未选择翻译模型，是否立即配置？')) {
+      if (confirm(t('content.no_model_alert'))) {
         chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
       }
       return;
@@ -1176,7 +1180,7 @@ const ContentApp: React.FC = () => {
             style={getThemeStyle('settingsPanel')}
         >
            <div className="flex justify-between items-center mb-4">
-             <h3 className={cn("font-bold bg-transparent", panelTextClass)}>快捷设置</h3>
+             <h3 className={cn("font-bold bg-transparent", panelTextClass)}>{t('content.quick_settings')}</h3>
              <button
                onClick={() => setShowMenu(false)}
                className={cn(
@@ -1201,11 +1205,11 @@ const ContentApp: React.FC = () => {
                   checked={isAutoTranslate}
                   onChange={toggleAutoTranslate}
                 />
-                自动翻译此网站
+                {t('popup.auto_translate_site')}
               </label>
 
               <div>
-                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>目标语言</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>{t('popup.target_language')}</label>
                  <select 
                    className={panelSelectClass}
                    value={settings.defaultToLang}
@@ -1218,13 +1222,13 @@ const ContentApp: React.FC = () => {
               </div>
 
               <div>
-                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>模型</label>
+                 <label className={cn("block text-xs font-medium mb-1", panelLabelTextClass)}>{t('popup.model')}</label>
                  <select 
                    className={panelSelectClass}
                    value={settings.defaultModelId}
                    onChange={(e) => updateSettings({ defaultModelId: e.target.value })}
                  >
-                   <option value="">选择模型...</option>
+                   <option value="">{t('popup.select_model')}</option>
                    {availableModels.map(model => (
                      <option key={model.id} value={model.id}>{model.name}</option>
                    ))}
@@ -1306,7 +1310,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logDom: e.target.checked } 
                         })}
                       />
-                      记录 DOM 操作
+                      {t('popup.log_dom')}
                     </label>
                     <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
@@ -1317,7 +1321,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logTranslation: e.target.checked } 
                         })}
                       />
-                      记录翻译内容
+                      {t('popup.log_translation')}
                     </label>
                     <label className={cn("flex items-center gap-2 text-xs cursor-pointer", settingsPanelIsDark ? "text-gray-200" : "text-gray-600")}>
                       <input 
@@ -1328,7 +1332,7 @@ const ContentApp: React.FC = () => {
                           developer: { ...settings.developer, logNetwork: e.target.checked } 
                         })}
                       />
-                      记录网络请求
+                      {t('popup.log_network')}
                     </label>
                   </div>
                 )}
@@ -1346,7 +1350,7 @@ const ContentApp: React.FC = () => {
             onClick={() => setShowMenu(!showMenu)}
             className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-100/20 dark:border-gray-600/20"
             style={getThemeStyle('settingsButton')}
-            title="设置"
+            title={t('content.settings_title')}
          >
            <Settings className={cn("w-4 h-4", settingsIconClass)} />
          </button>
