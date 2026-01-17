@@ -472,9 +472,107 @@ const ContentApp: React.FC = () => {
     }))
   );
 
+  // Draggable State
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    initialLeft: number;
+    initialTop: number;
+    hasMoved: boolean;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current) return;
+
+    const { startX, startY, initialLeft, initialTop } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // Threshold check to distinguish click from drag
+    if (!dragRef.current.hasMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      dragRef.current.hasMoved = true;
+      setIsDragging(true);
+    }
+
+    if (dragRef.current.hasMoved) {
+      // Calculate new position
+      let newX = initialLeft + dx;
+      let newY = initialTop + dy;
+
+      // Boundary checks
+      const container = containerRef.current;
+      if (container) {
+          const width = container.offsetWidth;
+          const height = container.offsetHeight;
+          const maxX = window.innerWidth - width;
+          const maxY = window.innerHeight - height;
+          
+          newX = Math.min(Math.max(0, newX), maxX);
+          newY = Math.min(Math.max(0, newY), maxY);
+      }
+
+      setPosition({ x: newX, y: newY });
+    }
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    
+    setIsDragging(false);
+    
+    // Delay clearing dragRef to allow onClickCapture to check hasMoved
+    setTimeout(() => {
+        dragRef.current = null;
+    }, 0);
+  }, [handleMouseMove]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only allow left click
+    if (e.button !== 0) return;
+    
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    
+    // If position is null (initial state), use the current rect
+    const initialLeft = position ? position.x : rect.left;
+    const initialTop = position ? position.y : rect.top;
+
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialLeft,
+      initialTop,
+      hasMoved: false,
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleClickCapture = (e: React.MouseEvent) => {
+    if (dragRef.current?.hasMoved) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   return (
     <div 
-      className="fixed top-1/2 right-0 -translate-y-1/2 flex flex-col items-end gap-2 font-sans text-gray-900 z-[9999]"
+      ref={containerRef}
+      className={cn(
+        "fixed flex flex-col items-end gap-2 font-sans text-gray-900 z-[9999]",
+        !position && "top-1/2 right-0 -translate-y-1/2", // Initial position
+        isDragging && "cursor-move"
+      )}
+      style={position ? { left: position.x, top: position.y } : undefined}
+      onMouseDown={handleMouseDown}
+      onClickCapture={handleClickCapture}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
