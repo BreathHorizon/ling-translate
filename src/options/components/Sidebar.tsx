@@ -9,12 +9,12 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
-    { id: 'general', label: '常规', icon: Settings },
-    { id: 'theme', label: '主题', icon: Palette },
-    { id: 'models', label: '配置', icon: Server },
-    { id: 'auto_translate', label: '自动翻译', icon: Globe },
-    { id: 'prompts', label: '提示词', icon: Terminal },
-    { id: 'about', label: '关于', icon: Info },
+    { id: 'general', label: 'General', icon: Settings },
+    { id: 'theme', label: 'Theme', icon: Palette },
+    { id: 'models', label: 'Configuration', icon: Server },
+    { id: 'auto_translate', label: 'Auto Translate', icon: Globe },
+    { id: 'prompts', label: 'Prompts', icon: Terminal },
+    { id: 'about', label: 'About', icon: Info },
   ];
 
   return (
@@ -22,7 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       <div className="p-6">
         <h1 className="text-xl font-bold text-primary flex items-center gap-2">
           <Globe className="w-6 h-6" />
-          Ling 翻译
+          Ling Translate
         </h1>
       </div>
       <nav className="px-4 space-y-1">
