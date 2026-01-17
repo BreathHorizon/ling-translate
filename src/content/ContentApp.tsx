@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Languages, Settings, Loader2, X, Terminal } from 'lucide-react';
+import { Languages, Settings, Loader2, X, Terminal, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils'
 import { TranslationRequest, TranslationResponse, UserSettings } from '@/lib/types';
 import { useStore } from '@/store/useStore';
@@ -27,7 +27,7 @@ interface TranslationItem {
 
 type TranslationPart = TranslationItem['parts'][number];
 
-// CSS-based loading indicator to avoid modifying DOM textContent
+// Loading indicator using real DOM elements for better compatibility
 let stylesInjected = false;
 
 const injectStyles = () => {
@@ -40,24 +40,68 @@ const injectStyles = () => {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    .ling-translate-loading::after {
-      content: '...';
-      animation: ling-translate-pulse 1.5s infinite;
-      margin-left: 2px;
-      font-weight: normal;
-      opacity: 0.7;
+    .ling-translate-indicator {
+      display: inline !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      margin-left: 4px !important;
+      font-size: inherit !important;
+      vertical-align: baseline !important;
+      color: #10b981 !important;
+      font-weight: bold !important;
+      animation: ling-translate-pulse 1s infinite !important;
+      pointer-events: none !important;
+    }
+    .ling-translate-spinner {
+      display: inline-block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      width: 12px !important;
+      height: 12px !important;
+      min-width: 12px !important;
+      min-height: 12px !important;
+      border: 2px solid rgba(16, 185, 129, 0.3) !important;
+      border-top-color: #10b981 !important;
+      border-radius: 50% !important;
+      animation: ling-translate-spin 0.8s linear infinite !important;
+      margin-left: 6px !important;
+      vertical-align: middle !important;
+      pointer-events: none !important;
+      box-sizing: border-box !important;
     }
     @keyframes ling-translate-pulse {
-      0% { opacity: 0.4; }
+      0%, 100% { opacity: 0.5; }
       50% { opacity: 1; }
-      100% { opacity: 0.4; }
+    }
+    @keyframes ling-translate-spin {
+      to { transform: rotate(360deg); }
     }
     .ling-translate-error {
-      color: #ef4444;
-      border-bottom: 1px dotted #ef4444;
+      color: #ef4444 !important;
+      border-bottom: 1px dotted #ef4444 !important;
     }
   `;
   document.head.appendChild(style);
+};
+
+// Helper to create loading indicator element
+const createLoadingIndicator = (type: 'ellipsis' | 'spinner'): HTMLSpanElement => {
+  const indicator = document.createElement('span');
+  indicator.setAttribute('data-ling-indicator', 'true');
+  if (type === 'ellipsis') {
+    indicator.className = 'ling-translate-indicator';
+    indicator.textContent = '...';
+  } else {
+    indicator.className = 'ling-translate-spinner';
+  }
+  return indicator;
+};
+
+// Helper to remove loading indicators from an element
+const removeLoadingIndicators = (element: Element | null) => {
+  if (!element) return;
+  const indicators = element.querySelectorAll('[data-ling-indicator="true"]');
+  indicators.forEach(ind => ind.remove());
 };
 
 const getAllTranslatableGroups = async () => {
@@ -200,6 +244,7 @@ const splitMultiTranslation = (text: string): string[] => {
 
 const ContentApp: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isTranslationEnabled, setIsTranslationEnabled] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -234,6 +279,17 @@ const ContentApp: React.FC = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const limiterRef = useRef<ReturnType<typeof createRequestLimiter> | null>(null);
   const translationRunIdRef = useRef(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const activeRequestsRef = useRef(0);
+
+  const updateProcessingState = useCallback((delta: number) => {
+    activeRequestsRef.current += delta;
+    const isBusy = activeRequestsRef.current > 0;
+    setIsProcessing(prev => {
+        if (prev !== isBusy) return isBusy;
+        return prev;
+    });
+  }, []);
 
   // Auto-translate State
   const autoTranslateTriggered = useRef(false);
@@ -275,18 +331,37 @@ const ContentApp: React.FC = () => {
     
     if (!limiter) return;
 
+    // Apply loading indicator using real DOM elements
+    const applyLoadingState = (part: TranslationPart) => {
+        const parent = part.node.parentElement;
+        if (!parent) return;
+
+        const style = currentSettings.loadingStyle || 'both';
+        if (style === 'none') return;
+
+        // Remove any existing indicators first
+        removeLoadingIndicators(parent);
+
+        // Add indicator based on style preference
+        if (style === 'ellipsis' || style === 'both') {
+            const indicator = createLoadingIndicator('ellipsis');
+            parent.appendChild(indicator);
+        }
+        if (style === 'spinner' || style === 'both') {
+            const indicator = createLoadingIndicator('spinner');
+            parent.appendChild(indicator);
+        }
+    };
+
     item.status = 'translating';
+    updateProcessingState(1);
     logger.dom('Processing item:', item.id, item.element);
 
-    // Use CSS class for loading state instead of modifying textContent
-    if (currentSettings.showLoadingIcon) {
-        item.parts.forEach(part => {
-           if (part.status === 'pending' && part.node.parentElement) {
-               part.node.parentElement.classList.add('ling-translate-loading');
-           }
-        });
-        logger.dom('Applied loading indicator for item:', item.id);
-    }
+    item.parts.forEach(part => {
+       if (part.status === 'pending') {
+           applyLoadingState(part);
+       }
+    });
 
     try {
       // Process all parts that need translation
@@ -294,6 +369,7 @@ const ContentApp: React.FC = () => {
       
       if (pendingParts.length === 0) {
         item.status = 'success';
+        // Note: Don't call updateProcessingState(-1) here, finally block will handle it
         return;
       }
 
@@ -311,9 +387,9 @@ const ContentApp: React.FC = () => {
         const normalized = normalizeTranslationText(part.originalText, translatedText);
         part.translatedText = normalized;
         part.status = 'success';
-        if (part.node.parentElement) {
-          part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
-        }
+        // Remove loading indicators and error class
+        removeLoadingIndicators(part.node.parentElement);
+        part.node.parentElement?.classList.remove('ling-translate-error');
         logger.dom('Updating text node:', part.node);
         if (part.node.textContent !== normalized) {
           part.node.textContent = normalized;
@@ -323,10 +399,9 @@ const ContentApp: React.FC = () => {
       const markPartError = (part: TranslationPart, error?: unknown) => {
         if (item.runId !== translationRunIdRef.current) return;
         part.status = 'error';
-        if (part.node.parentElement) {
-          part.node.parentElement.classList.remove('ling-translate-loading');
-          part.node.parentElement.classList.add('ling-translate-error');
-        }
+        // Remove loading indicators and add error class
+        removeLoadingIndicators(part.node.parentElement);
+        part.node.parentElement?.classList.add('ling-translate-error');
         if (error) {
           logger.translation('Part failed:', error);
         }
@@ -445,9 +520,7 @@ const ContentApp: React.FC = () => {
          item.status = 'success';
          // Clean up all loading indicators
          item.parts.forEach(part => {
-             if (part.node.parentElement) {
-                 part.node.parentElement.classList.remove('ling-translate-loading');
-             }
+             removeLoadingIndicators(part.node.parentElement);
          });
          if (item.runId !== translationRunIdRef.current) return;
          item.element.setAttribute('data-translated', 'true');
@@ -458,16 +531,29 @@ const ContentApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Translation error:', error);
+      
+      // Check for Extension Context Invalidated error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Extension context invalidated') || errorMessage.includes('context invalidated')) {
+        if (!window['__ling_translate_context_alert_shown']) {
+            window['__ling_translate_context_alert_shown'] = true;
+            alert('Extension updated or reloaded. Please refresh the page to continue using Ling Translate.');
+        }
+        // Stop retrying
+        item.status = 'error';
+        // Note: Don't call updateProcessingState(-1) here, finally block will handle it
+        return;
+      }
+
       item.retryCount++;
       if (item.retryCount < MAX_RETRIES) {
         item.status = 'pending'; // Reset to pending to retry
-        // Restore original text and clean up classes before retry
+        // Restore original text and clean up indicators before retry
         item.parts.forEach(part => {
             if (part.status === 'error') {
                 part.status = 'pending';
-                if (part.node.parentElement) {
-                    part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
-                }
+                removeLoadingIndicators(part.node.parentElement);
+                part.node.parentElement?.classList.remove('ling-translate-error');
                 if (part.node.textContent !== part.originalText) {
                     part.node.textContent = part.originalText;
                 }
@@ -480,11 +566,10 @@ const ContentApp: React.FC = () => {
         }, 1000 * Math.min(item.retryCount, 5));
       } else {
         item.status = 'error';
-        // Reset text content and clean up CSS classes on error
+        // Reset text content and clean up indicators on error
         item.parts.forEach(part => {
-             if (part.node.parentElement) {
-                 part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
-             }
+             removeLoadingIndicators(part.node.parentElement);
+             part.node.parentElement?.classList.remove('ling-translate-error');
              if (part.node.textContent !== part.originalText) {
                  part.node.textContent = part.originalText;
              }
@@ -492,9 +577,10 @@ const ContentApp: React.FC = () => {
         logger.info(`Translation failed permanently for item ${item.id}`);
       }
     } finally {
+       updateProcessingState(-1);
        // No cleanup needed for text suffix
     }
-  }, []);
+  }, [updateProcessingState]);
 
   const cancelTranslation = useCallback(() => {
     translationRunIdRef.current += 1;
@@ -509,9 +595,8 @@ const ContentApp: React.FC = () => {
     const itemsMap = translationItemsRef.current;
     itemsMap.forEach((item) => {
       item.parts.forEach(part => {
-        if (part.node.parentElement) {
-          part.node.parentElement.classList.remove('ling-translate-loading', 'ling-translate-error');
-        }
+        removeLoadingIndicators(part.node.parentElement);
+        part.node.parentElement?.classList.remove('ling-translate-error');
         if (part.node.textContent !== part.originalText) {
           part.node.textContent = part.originalText;
         }
@@ -605,6 +690,24 @@ const ContentApp: React.FC = () => {
         retryCount: 0,
         isVisible: false
       });
+
+      // Apply loading indicator immediately for all pending items
+      const loadingStyle = currentSettings.loadingStyle || 'both';
+      if (loadingStyle !== 'none') {
+          parts.forEach(part => {
+              const parent = part.node.parentElement;
+              if (parent) {
+                  if (loadingStyle === 'ellipsis' || loadingStyle === 'both') {
+                      const indicator = createLoadingIndicator('ellipsis');
+                      parent.appendChild(indicator);
+                  }
+                  if (loadingStyle === 'spinner' || loadingStyle === 'both') {
+                      const indicator = createLoadingIndicator('spinner');
+                      parent.appendChild(indicator);
+                  }
+              }
+          });
+      }
     });
 
     translationItemsRef.current = itemsMap;
@@ -696,7 +799,7 @@ const ContentApp: React.FC = () => {
   );
 
   // Draggable State
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<{ x: number; y: number; isRight?: boolean } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{
     startX: number;
@@ -723,24 +826,53 @@ const ContentApp: React.FC = () => {
     }
 
     if (dragRef.current.hasMoved) {
-      // Calculate new position
+      // Calculate new position (always absolute for dragging)
       let newX = initialLeft + dx;
       let newY = initialTop + dy;
 
       // Boundary checks
       const width = dragRef.current.initialWidth;
       const height = dragRef.current.initialHeight;
-      const maxX = document.documentElement.clientWidth - width;
-      const maxY = document.documentElement.clientHeight - height;
+      const maxX = window.innerWidth - width;
+      const maxY = window.innerHeight - height;
       
       newX = Math.min(Math.max(0, newX), maxX);
       newY = Math.min(Math.max(0, newY), maxY);
 
-      setPosition({ x: newX, y: newY });
+      setPosition({ x: newX, y: newY, isRight: false });
     }
   }, []);
 
   const handleMouseUp = useCallback(() => {
+    if (dragRef.current?.hasMoved && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const width = rect.width;
+      const maxX = window.innerWidth - width;
+      const currentX = rect.left;
+      
+      // Snapping logic: if close to right edge, snap to right
+      const snapThreshold = 30;
+      if (currentX > maxX - snapThreshold) {
+        setPosition({
+          x: 0, // Distance from right
+          y: rect.top,
+          isRight: true
+        });
+      } else if (currentX < snapThreshold) {
+        setPosition({
+          x: 0, // Distance from left
+          y: rect.top,
+          isRight: false
+        });
+      } else {
+        setPosition({
+          x: currentX,
+          y: rect.top,
+          isRight: false
+        });
+      }
+    }
+
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('mouseup', handleMouseUp);
     
@@ -752,6 +884,47 @@ const ContentApp: React.FC = () => {
     }, 0);
   }, [handleMouseMove]);
 
+  // Handle window resize to keep floating button in bounds
+  useEffect(() => {
+    const handleResize = () => {
+      if (!position || !containerRef.current) return;
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+
+      setPosition(prev => {
+        if (!prev) return null;
+        
+        let newX = prev.x;
+        let newY = Math.min(Math.max(0, prev.y), maxY);
+        let isRight = prev.isRight;
+        
+        if (prev.isRight) {
+          // Keep at right edge if it was snapped or within bounds
+          // When snapped to right, x is distance from right edge (usually 0)
+          // We don't need to change x or isRight
+        } else {
+          // Left-aligned mode (x is distance from left)
+          // Check if we are being pushed against the right edge or overflowing
+          if (newX >= maxX - 5) { // 5px threshold for auto-snap
+             // Switch to right-snap mode
+             newX = 0;
+             isRight = true;
+          } else {
+             // Keep at left side within bounds
+             newX = Math.min(Math.max(0, prev.x), maxX);
+          }
+        }
+        
+        return { ...prev, x: newX, y: newY, isRight };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [position]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only allow left click
     if (e.button !== 0) return;
@@ -761,9 +934,9 @@ const ContentApp: React.FC = () => {
 
     const rect = container.getBoundingClientRect();
     
-    // If position is null (initial state), use the current rect
-    const initialLeft = position ? position.x : rect.left;
-    const initialTop = position ? position.y : rect.top;
+    // Always use current visual position for starting drag
+    const initialLeft = rect.left;
+    const initialTop = rect.top;
 
     dragRef.current = {
       startX: e.clientX,
@@ -864,6 +1037,8 @@ const ContentApp: React.FC = () => {
     updateSettings({ autoTranslateDomains: newDomains });
   };
 
+  if (isHidden) return null;
+
   return (
     <div 
       ref={containerRef}
@@ -872,7 +1047,11 @@ const ContentApp: React.FC = () => {
         !position && "top-1/2 right-0 -translate-y-1/2", // Initial position
         isDragging && "cursor-move"
       )}
-      style={position ? { left: position.x, top: position.y } : undefined}
+      style={position ? { 
+        left: position.isRight ? undefined : position.x, 
+        right: position.isRight ? position.x : undefined,
+        top: position.y 
+      } : undefined}
       onMouseDown={handleMouseDown}
       onClickCapture={handleClickCapture}
       onMouseEnter={handleMouseEnter}
@@ -939,6 +1118,17 @@ const ContentApp: React.FC = () => {
                    ))}
                  </select>
               </div>
+
+              <button
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium w-full p-2 rounded-lg transition-colors text-left",
+                  settingsPanelIsDark ? "text-gray-100 bg-white/5 hover:bg-white/10" : "text-gray-700 bg-black/5 hover:bg-black/10"
+                )}
+                onClick={() => setIsHidden(true)}
+              >
+                <EyeOff className="w-4 h-4" />
+                Temporarily Hide
+              </button>
 
               <button 
                 className="w-full py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors font-medium" 
@@ -1036,7 +1226,7 @@ const ContentApp: React.FC = () => {
         {isTranslationEnabled && (
           <span className="absolute inset-0 rounded-full bg-emerald-400/20 pointer-events-none" />
         )}
-        {isTranslating ? (
+        {isTranslating || isProcessing ? (
           <Loader2 className={cn("w-5 h-5 animate-spin", floatingIconClass)} />
         ) : (
           <Languages className={cn("w-5 h-5", floatingIconClass)} />

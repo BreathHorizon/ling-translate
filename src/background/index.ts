@@ -276,9 +276,12 @@ async function callOpenAI(
 ): Promise<string> {
   const langName = LANG_CODE_TO_NAME[targetLang] || targetLang;
   const useMultiple = contentType === 'multi' && model.systemMultiplePrompt && model.multiplePrompt;
-  const systemPrompt = (useMultiple ? model.systemMultiplePrompt : model.systemPrompt)
-    .replace('{{to}}', langName);
-  const userPrompt = (useMultiple ? model.multiplePrompt : model.prompt)
+  
+  const rawSystemPrompt = (useMultiple ? model.systemMultiplePrompt : model.systemPrompt) || '';
+  const rawUserPrompt = (useMultiple ? model.multiplePrompt : model.prompt) || '';
+
+  const systemPrompt = rawSystemPrompt.replace('{{to}}', langName);
+  const userPrompt = rawUserPrompt
     .replace('{{to}}', langName)
     .replace('{{text}}', text);
 

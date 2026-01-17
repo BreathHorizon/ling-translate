@@ -15,12 +15,17 @@ export const ThemeConfig: React.FC = () => {
     syncFloatingWallpaperToSettingsButton: false,
     maskType: 'auto' as const,
     maskOpacity: 0.8,
+    loadingStyle: 'both' as const,
     ...settings.theme,
   });
 
   useEffect(() => {
-    setLocalTheme(prev => ({ ...prev, ...settings.theme }));
-  }, [settings.theme]);
+    setLocalTheme(prev => ({ 
+        ...prev, 
+        ...settings.theme,
+        loadingStyle: (settings.loadingStyle ?? prev.loadingStyle) as typeof prev.loadingStyle
+    }));
+  }, [settings.theme, settings.loadingStyle]);
 
   const updateLocalTheme = (partial: Partial<typeof localTheme>) => {
     setLocalTheme(prev => ({ ...prev, ...partial }));
@@ -28,7 +33,17 @@ export const ThemeConfig: React.FC = () => {
 
   const handleSave = () => {
     updateSettings({
-      theme: localTheme,
+      theme: {
+          mode: localTheme.mode,
+          frostedTone: localTheme.frostedTone,
+          frostedOpacity: localTheme.frostedOpacity,
+          syncFloatingWallpaperToSettingsButton: localTheme.syncFloatingWallpaperToSettingsButton,
+          maskType: localTheme.maskType,
+          maskOpacity: localTheme.maskOpacity,
+          floatingWallpaper: localTheme.floatingWallpaper,
+          settingsWallpaper: localTheme.settingsWallpaper
+      },
+      loadingStyle: localTheme.loadingStyle,
     });
     alert('Theme settings saved!');
   };
@@ -75,6 +90,25 @@ export const ThemeConfig: React.FC = () => {
            </div>
 
            <div className="mb-8 space-y-4">
+            <h3 className="font-semibold text-gray-700">Loading Indicator Style</h3>
+            <div className="flex flex-wrap gap-4">
+              {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
+                <label key={style} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="loadingStyle"
+                    value={style}
+                    checked={localTheme.loadingStyle === style}
+                    onChange={() => updateLocalTheme({ loadingStyle: style as typeof localTheme.loadingStyle })}
+                    className="text-primary focus:ring-primary"
+                  />
+                  <span className="capitalize text-sm text-gray-700">{style}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-8 space-y-4">
              <h3 className="font-semibold text-gray-700">Theme Mode</h3>
              <div className="flex flex-wrap gap-4">
                <label className="flex items-center gap-2 cursor-pointer">

@@ -3,14 +3,27 @@ import { UserSettings, DEFAULT_SETTINGS } from './types';
 export const getSettings = async (): Promise<UserSettings> => {
   try {
     const result = await chrome.storage.local.get('settings');
-    if (!result.settings) {
+    let settings = result.settings;
+
+    if (!settings) {
        const syncResult = await chrome.storage.sync.get('settings');
-       if (syncResult.settings) {
-           await chrome.storage.local.set({ settings: syncResult.settings });
-           return (syncResult.settings as UserSettings) || DEFAULT_SETTINGS;
+       settings = syncResult.settings || {};
+       if (Object.keys(settings).length > 0) {
+           await chrome.storage.local.set({ settings });
        }
     }
-    return (result.settings as UserSettings) || DEFAULT_SETTINGS;
+
+    // Explicitly merge with defaults
+    const merged = Object.assign({}, DEFAULT_SETTINGS, settings) as UserSettings;
+    
+    // Migration: showLoadingIcon -> loadingStyle
+    // If loadingStyle is missing but showLoadingIcon exists, map it
+    if (settings && typeof settings === 'object' && 'showLoadingIcon' in settings && !('loadingStyle' in settings)) {
+        // @ts-ignore - accessing legacy property
+        merged.loadingStyle = settings.showLoadingIcon ? 'both' : 'none';
+    }
+
+    return merged;
   } catch (error) {
     console.error('Failed to get settings:', error);
     return DEFAULT_SETTINGS;

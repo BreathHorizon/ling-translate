@@ -50,7 +50,8 @@ export interface UserSettings {
   autoTranslateDomains: string[];
   theme: ThemeSettings;
   apiConfigs: ApiConfig[];
-  showLoadingIcon: boolean;
+  loadingStyle: 'spinner' | 'ellipsis' | 'both' | 'none';
+  // Deprecated: showLoadingIcon (migrated to loadingStyle)
   developer: DeveloperSettings;
 }
 
@@ -106,7 +107,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     maskOpacity: 0.8
   },
   apiConfigs: [],
-  showLoadingIcon: true,
+  loadingStyle: 'both',
   developer: {
     enabled: false,
     logDom: false,

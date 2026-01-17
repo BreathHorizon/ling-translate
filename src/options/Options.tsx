@@ -86,16 +86,25 @@ const Options: React.FC = () => {
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-bold mb-4">Translation</h2>
-                <label className="flex items-center gap-3 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    checked={settings.showLoadingIcon ?? true}
-                    onChange={(e) => updateSettings({ showLoadingIcon: e.target.checked })}
-                  />
-                  Show loading indicator (...) beside text while translating
-                </label>
+                <h2 className="text-xl font-bold mb-4">Loading Indicator Style</h2>
+                <p className="text-gray-500 mb-4">
+                  Choose how the loading indicator appears next to text being translated.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  {(['spinner', 'ellipsis', 'both', 'none'] as const).map((style) => (
+                    <label key={style} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="loadingStyleGeneral"
+                        value={style}
+                        checked={settings.loadingStyle === style}
+                        onChange={() => updateSettings({ loadingStyle: style })}
+                        className="text-primary focus:ring-primary w-4 h-4"
+                      />
+                      <span className="capitalize text-sm text-gray-700 font-medium">{style}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">

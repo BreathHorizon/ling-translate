@@ -7,7 +7,10 @@ import zip from 'vite-plugin-zip-pack'
 
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      include: "**/*.tsx",
+      exclude: /src\/content\/.*\.tsx?$/,
+    }),
     crx({ manifest }),
     zip({ outDir: 'release', outFileName: 'release.zip' }),
   ],
@@ -15,6 +18,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom'],
   },
   build: {
     sourcemap: true
