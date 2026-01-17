@@ -176,6 +176,30 @@ const ContentApp: React.FC = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const { settings, loadSettings, updateSettings } = useStore();
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovered(false);
+    }, 2000);
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
 
   // Translation State
   const translationItemsRef = useRef<Map<HTMLElement, TranslationItem>>(new Map());
@@ -635,13 +659,13 @@ const ContentApp: React.FC = () => {
       style={position ? { left: position.x, top: position.y } : undefined}
       onMouseDown={handleMouseDown}
       onClickCapture={handleClickCapture}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Quick Settings Menu */}
       {showMenu && (
         <div 
-            className="absolute bottom-full mb-2 right-0 w-72 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-bottom-2 z-50 text-left overflow-hidden"
+            className="absolute bottom-full mb-2 right-0 w-72 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 animate-in slide-in-from-bottom-2 z-[100] text-left overflow-hidden"
             style={getThemeStyle('settings')}
         >
            <div className="flex justify-between items-center mb-4">
